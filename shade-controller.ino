@@ -7,12 +7,12 @@
 #include <ESP32Servo360.h>
 
 // This file specifies wifi creds. Ex:
-// #define WIFI_SSID "REPLACE WITH WIFI NAME";
-// #define WIFI_PASSWORD "REPLACE WITH WIFI PASSWORD";
+// #define WIFI_SSID "REPLACE WITH WIFI NAME"
+// #define WIFI_PASSWORD "REPLACE WITH WIFI PASSWORD"
 #include "./wifi-info.h"
 
 // Servo pin
-const int servoPin = 14; // Use a PWM-capable pin on your ESP32
+const int servoPin = 14; // Use a PWM-capable pin on your ESP32 (move to header config?)
 
 // Create a servo object
 ESP32Servo360 topMotor;
@@ -54,26 +54,47 @@ void setup() {
   prepareTopMotor();
 }
 
-unsigned long previousMillis = millis();
-unsigned long wifiCheckInterval = 30 * 1000;
+unsigned long previousWifiCheckMillis = millis();
+unsigned long wifiCheckInterval = 30 * 1000; // 30 seconds
 bool wifiOkStatus = false;
 
 void checkWifiStatus() {
   unsigned long currentMillis = millis();
   // if WiFi is down, try reconnecting every CHECK_WIFI_TIME seconds
-  if ((currentMillis - previousMillis >= wifiCheckInterval) && (WiFi.status() != WL_CONNECTED)) {
+  if ((currentMillis - previousWifiCheckMillis >= wifiCheckInterval) && (WiFi.status() != WL_CONNECTED)) {
     Serial.print(currentMillis);
     Serial.println("Reconnecting to WiFi...");
     WiFi.disconnect();
     WiFi.reconnect();
-    previousMillis = currentMillis;
+    previousWifiCheckMillis = currentMillis;
   }
   wifiOkStatus = (WiFi.status() == WL_CONNECTED);
 }
 
+unsigned long ntpCheckInterval = 60*60*1000; // 1 hour
+unsigned long previousNtpCheckMillis = millis() - ntpCheckInterval;
+bool ntpOkStatus = false;
+
+void checkNtpStatus() {
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - previousNtpCheckMillis >= ntpCheckInterval) {
+    ntpOkStatus = false;
+    configTime(-8 * 60 * 60 /*PST*/, 60 * 60/*1 hour for PDT*/, "time.google.com", "time.nist.gov", "pool.ntp.org"); // MOVE TO CONFIG
+    
+    struct tm timeinfo;
+    if(!getLocalTime(&timeinfo)){
+      Serial.println("Failed to obtain time");
+    } else {
+      Serial.println(&timeinfo, "%A, %B %d %Y %H:%M:%S");
+      ntpOkStatus = true;
+    }
+    previousNtpCheckMillis = currentMillis;
+  }
+}
 void loop() {
   checkWifiStatus();
-
+  checkNtpStatus();
   //int enButtonState = digitalRead(EN_BUTTON_PIN);  // Read the state of the button
   //Serial.println(buttonState);
   //if (enButtonState == LOW) {  // If the button is pressed (logic is reversed due to pullup resistor)
@@ -88,7 +109,7 @@ void loop() {
     Serial.println("BOOT button pressed!");
   }
 
-  if (wifiOkStatus) {
+  if (wifiOkStatus && ntpOkStatus) {
     digitalWrite(BLUE_BUILT_IN_LED, HIGH);
   } else {
     digitalWrite(BLUE_BUILT_IN_LED, LOW);
