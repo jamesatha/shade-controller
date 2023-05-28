@@ -22,8 +22,15 @@ AsyncWebServer server(80);
 
 void prepareTopMotor() {
   topMotor.attach(32, 33);
-  //topMotor.calibrate();
+  //topMotor.calibrate(); // Minimal PWM: 36, maximal PWM: 1075
+  topMotor.setMinimalForce(12);
+  topMotor.setSpeed(10);
+  
+  //topMotor.setAdditionalTorque(200); // unsure about this
+  topMotor.setOffset(topMotor.getAngle());
 }
+
+int topRotations = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -47,6 +54,39 @@ void setup() {
 
   //server = AsyncWebServer(80);
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    if (request->hasParam("speed")) {
+      int speed = request->getParam("speed")->value().toInt();
+      if (speed > 20) {
+        speed = 20;
+      }
+      Serial.print("Setting speed to ");
+      Serial.println(speed);
+      topMotor.setSpeed(speed);
+    }
+    if (request->hasParam("rotations")) {
+      int rotations = request->getParam("rotations")->value().toInt();
+      Serial.print("Spinning ");
+      Serial.print(rotations);
+      Serial.println(" times");
+      topRotations = rotations;
+      /*bool clockwise = rotations > 0;
+      if (!clockwise) {
+        rotations *= -1;
+      }
+      for (int i = 0; i < rotations*2; i++) {
+        if (clockwise) {
+          topMotor.rotate(180);
+        } else {
+          topMotor.rotate(-180);
+        }
+        delay(7000);
+      }
+      */
+    } else {
+      Serial.println("Resetting motor to 0");
+      topMotor.rotate(0);
+    }
+    
     request->send(200, "text/plain", "YES!"); // check type
   });
   server.begin();
@@ -92,9 +132,53 @@ void checkNtpStatus() {
     previousNtpCheckMillis = currentMillis;
   }
 }
+
+unsigned long topMotorWait = 400; // 
+unsigned long prevTopMotorCommand = millis() - topMotorWait;
+void continueTopMotorRotation() {
+  if (topRotations != 0 && millis() - prevTopMotorCommand >= topMotorWait) {
+    if (topRotations > 0) {
+      //Serial.print("positive ");
+      //Serial.println(topRotations);
+      topMotor.easeRotate(10);
+      topRotations--;
+    } else {
+      //Serial.print("negative ");
+      //Serial.println(topRotations);
+      topMotor.easeRotate(-10);
+      topRotations++;
+    }
+    prevTopMotorCommand = millis();
+  }
+}
+
+void printTopMotorStuff() {
+    Serial.print("Angle: ");
+    Serial.print(topMotor.getAngle());
+
+    Serial.print(" - Orientation: ");
+    Serial.print(topMotor.getOrientation());
+
+    Serial.print(" - Busy: ");
+    Serial.print(topMotor.busy());
+
+    Serial.print(" - Speed: ");
+    Serial.print(topMotor.getSpeed());
+
+    Serial.print(" - Turns: ");
+    Serial.println(topMotor.getTurns());
+}
+
+int prevBootButtonState = HIGH;
 void loop() {
+  
   checkWifiStatus();
   checkNtpStatus();
+  continueTopMotorRotation();
+
+  if (topRotations != 0) {
+    printTopMotorStuff();
+  }
   //int enButtonState = digitalRead(EN_BUTTON_PIN);  // Read the state of the button
   //Serial.println(buttonState);
   //if (enButtonState == LOW) {  // If the button is pressed (logic is reversed due to pullup resistor)
@@ -104,15 +188,23 @@ void loop() {
   //}
 
   int bootButtonState = digitalRead(BOOT_BUTTON_PIN);  // Read the state of the BOOT button
-  if (bootButtonState == LOW) {  // If the BOOT button is pressed (logic is reversed due to pullup resistor)
-    // Do something when the BOOT button is pressed
-    Serial.println("BOOT button pressed!");
+  if (prevBootButtonState != bootButtonState) {
+    // Boot button change
+    if (bootButtonState == LOW) {  // If the BOOT button is pressed for first time (logic is reversed due to pullup resistor)
+      // Do something when the BOOT button is pressed
+      //topMotor.rotate(180);
+      printTopMotorStuff();
+    } else {
+      
+    }
+    prevBootButtonState = bootButtonState;
   }
+  
 
   if (wifiOkStatus && ntpOkStatus) {
     digitalWrite(BLUE_BUILT_IN_LED, HIGH);
   } else {
     digitalWrite(BLUE_BUILT_IN_LED, LOW);
   }
-  delay(1000); // Power saving mechanism to slow down the loop to about once a second
+  delay(100); // Power saving mechanism to slow down the loop to about once a second
 }
