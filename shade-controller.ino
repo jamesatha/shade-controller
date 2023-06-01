@@ -77,8 +77,8 @@ void setup() {
     if (topDeltaDegrees == 0 && millis() - prevTopMotorCommand >= topMotorWait) {
       if (request->hasParam("speed")) {
         int speed = request->getParam("speed")->value().toInt();
-        if (speed > 90) {
-          speed = 90;
+        if (speed > 240) {
+          speed = 240;
         }
         Serial.print("Setting speed to ");
         Serial.println(speed);
@@ -172,7 +172,7 @@ void checkNtpStatus() {
 
 # define BUFFER 5
 # define INCREMENTAL_ANGLE 180
-# define EXPECTED_DELTA_PER_STEP 100 // ok with 70
+# define EXPECTED_DELTA_PER_STEP 6 // ok with 70 // no load worked with 100
 int prevRemaining = 0;
 void continueTopMotorRotation() {
   if (topDeltaDegrees != 0 && millis() - prevTopMotorCommand >= topMotorWait && topMotorStatus != MOTOR_STALLED) {
