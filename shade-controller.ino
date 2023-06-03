@@ -1,12 +1,19 @@
-//# define BLUE_BUILT_IN_LED 2  
+# define BLUE_BUILT_IN_LED 2  
 # define EN_BUTTON_PIN 3
 # define BOOT_BUTTON_PIN 0
-# define TOP_MOTOR_CONTROL_PIN_MUST_BE_PULL_DOWN 2
+
+#define STEPPER_STEPS 200 // Change this according to your stepper motor specs (usually 200 steps for NEMA 17)
+
+// unsure if that needs to be on a PULL_DOWN (2)
+#define DIR_PIN 13
+#define STEP_PIN 12
+
 #include <mutex>
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
-#include <ESP32Servo360.h>
 #include <ArduinoJson.h>
+//#include <Stepper.h>
+//Stepper stepper(200, STEP_PIN, DIR_PIN);
 
 // This file specifies wifi creds. Ex:
 // #define WIFI_SSID "REPLACE WITH WIFI NAME"
@@ -16,13 +23,12 @@
 std::mutex change_request_mutex; 
 
 typedef enum {
-    MOTOR_OK,
     MOTOR_UNKNOWN,
-    MOTOR_STALLED
+    MOTOR_MOVING,
+    MOTOR_AT_TOP,
+    MOTOR_AT_BOTTOM
 } MotorState;
 
-// Create a servo object
-ESP32Servo360 topMotor;
 MotorState topMotorStatus = MOTOR_UNKNOWN;
 
 // Other status stuff
@@ -34,32 +40,36 @@ bool ntpOkStatus = false;
 // Create an instance of the server
 AsyncWebServer server(80);
 
+
 void prepareTopMotor() {
-  topMotor.attach(TOP_MOTOR_CONTROL_PIN_MUST_BE_PULL_DOWN, 33);
-  topMotor.stop();
-  //topMotor.calibrate(); // Minimal PWM: 36, maximal PWM: 1075
-  topMotor.setMinimalForce(12);
-  topMotor.setSpeed(10);
-  
-  //topMotor.setAdditionalTorque(200); // unsure about this
-  topMotor.setOffset(topMotor.getAngle());
+  pinMode(DIR_PIN, OUTPUT);
+  pinMode(STEP_PIN, OUTPUT);
+  //stepper.setSpeed(10);
 }
 
-int topStepsInRecentCommand = 0;
-int topDeltaDegrees = 0;
-float topTarget = 0;
-unsigned long topMotorWait = 1000; // 
-unsigned long prevTopMotorCommand = millis() - topMotorWait;
+void prepareStatusLED() {
+  pinMode(BLUE_BUILT_IN_LED, OUTPUT);  // Setting the blue LED to be an output that we can set
+  digitalWrite(BLUE_BUILT_IN_LED, LOW); // Turn off the blue light so we know we are not ready
+}
+
+void updateStatusLED() {
+  if (wifiOkStatus && ntpOkStatus) {
+    digitalWrite(BLUE_BUILT_IN_LED, HIGH);
+  } else {
+    Serial.println("Something is wrong");
+    digitalWrite(BLUE_BUILT_IN_LED, LOW);
+  }
+}
+
 void setup() {
   prepareTopMotor(); // DO THIS FIRST TO STOP MOTOR FROM SPINNING ON BOOT
+  prepareStatusLED();
+
   Serial.begin(9600);
   delay(10);
-  //pinMode(BLUE_BUILT_IN_LED, OUTPUT);  // Setting the blue LED to be an output that we can set
-  //digitalWrite(BLUE_BUILT_IN_LED, LOW); // Turn off the blue light so we know we are not ready
 
   // Still not really being used
   pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP);  // Set the BOOT button pin as input with pullup resistor
-  delay(10);
 
   // Connect to Wi-Fi (attempt to wait 20 seconds for wifi to come up)
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -74,7 +84,7 @@ void setup() {
   //server = AsyncWebServer(80);
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     std::lock_guard<std::mutex> lck(change_request_mutex);
-    if (topDeltaDegrees == 0 && millis() - prevTopMotorCommand >= topMotorWait) {
+    if (topMotorStatus != MOTOR_MOVING) {
       if (request->hasParam("speed")) {
         int speed = request->getParam("speed")->value().toInt();
         if (speed > 240) {
@@ -82,16 +92,13 @@ void setup() {
         }
         Serial.print("Setting speed to ");
         Serial.println(speed);
-        topMotor.setSpeed(speed);
       }
       if (request->hasParam("rotations")) {
         int rotations = request->getParam("rotations")->value().toInt();
         Serial.print("Spinning ");
         Serial.print(rotations);
         Serial.println(" degrees");
-        topDeltaDegrees = rotations;
-        topTarget = topMotor.getAngle() + topDeltaDegrees;
-        topStepsInRecentCommand = 0;
+        
       }
       
       request->send(200, "text/plain", "YES!"); // check type
@@ -106,22 +113,22 @@ void setup() {
     doc["wifi"] = wifiOkStatus;
     doc["ntp"] = ntpOkStatus;
     switch (topMotorStatus) {
-      case MOTOR_OK:
-        doc["motor"] = "ok";
-        break;
       case MOTOR_UNKNOWN:
         doc["motor"] = "unknown";
         break;
-      case MOTOR_STALLED:
-        doc["motor"] = "stalled";
+      case MOTOR_AT_BOTTOM:
+        doc["motor"] = "bottom";
+        break;
+      case MOTOR_AT_TOP:
+        doc["motor"] = "top";
+        break;
+      case MOTOR_MOVING:
+        doc["motor"] = "moving";
         break;
       default:
         doc["motor"] = "compiler error";
     }
     
-    doc["angle"] = topMotor.getAngle();
-    doc["motor_busy"] = topDeltaDegrees != 0 || millis() - prevTopMotorCommand < topMotorWait;
-
     String jsonString;
     serializeJsonPretty(doc, jsonString); // switch method to serializeJson eventually
     
@@ -170,101 +177,39 @@ void checkNtpStatus() {
 }
 
 
-# define BUFFER 5
-# define INCREMENTAL_ANGLE 180
-# define EXPECTED_DELTA_PER_STEP 6 // ok with 70 // no load worked with 100
-int prevRemaining = 0;
-void continueTopMotorRotation() {
-  if (topDeltaDegrees != 0 && millis() - prevTopMotorCommand >= topMotorWait && topMotorStatus != MOTOR_STALLED) {
-    printTopMotorStuff();
-    float curAngle = topMotor.getAngle();
-    float remaining = topTarget - curAngle;
-    if (topDeltaDegrees > 0 && curAngle < topTarget - BUFFER) {
-      topStepsInRecentCommand++;
-      if (topStepsInRecentCommand > 1) {
-        if (prevRemaining < EXPECTED_DELTA_PER_STEP + remaining) {
-          topMotorStatus = MOTOR_STALLED;
-          Serial.println("Stalled on the way up");
-          topMotor.stop();
-        } else {
-          topMotorStatus = MOTOR_OK;
-        }
-      }
-      Serial.print("Diff to target: ");
-      Serial.println(topTarget - curAngle);
-      //Serial.println(curAngle + INCREMENTAL_ANGLE > topTarget ? topTarget : curAngle + INCREMENTAL_ANGLE);
-      topMotor.easeRotateTo(curAngle + INCREMENTAL_ANGLE > topTarget ? topTarget : curAngle + INCREMENTAL_ANGLE);
-      
-    } else if (topDeltaDegrees < 0 && curAngle > topTarget + BUFFER) {
-      topStepsInRecentCommand++;
-
-      if (topStepsInRecentCommand > 1) {
-        if (prevRemaining + EXPECTED_DELTA_PER_STEP > remaining) {
-          topMotorStatus = MOTOR_STALLED;
-          Serial.println("Stalled on the way down");
-          topMotor.stop();
-        } else {
-          topMotorStatus = MOTOR_OK;
-        }
-      }
-
-      Serial.print("Easing down to: ");
-      Serial.println(curAngle - INCREMENTAL_ANGLE < topTarget ? topTarget : curAngle - INCREMENTAL_ANGLE);
-      topMotor.easeRotateTo(curAngle - INCREMENTAL_ANGLE < topTarget ? topTarget : curAngle - INCREMENTAL_ANGLE);
-    } else {
-      topDeltaDegrees = 0;
-      Serial.println("Ending rotation");
-    }
-    prevRemaining = remaining;
-    prevTopMotorCommand = millis();
+void manualRotate() {
+  digitalWrite(DIR_PIN, HIGH); // Set the direction
+  for(int i = 0; i < STEPPER_STEPS*16; i++) {
+    digitalWrite(STEP_PIN, HIGH); // Make one step
+    delayMicroseconds(100); // Change this delay as needed
+    digitalWrite(STEP_PIN, LOW); // Reset step pin
+    delayMicroseconds(100); // Change this delay as needed
   }
-}
-
-void printTopMotorStuff() {
-    Serial.print("Angle: ");
-    Serial.print(topMotor.getAngle());
-
-    Serial.print(" - Orientation: ");
-    Serial.print(topMotor.getOrientation());
-
-    Serial.print(" - Busy: ");
-    Serial.print(topMotor.busy());
-
-    Serial.print(" - Speed: ");
-    Serial.print(topMotor.getSpeed());
-
-    Serial.print(" - Turns: ");
-    Serial.println(topMotor.getTurns());
 }
 
 int prevBootButtonState = HIGH;
 void loop() {
   checkWifiStatus();
   checkNtpStatus();
-  continueTopMotorRotation();
 
   int bootButtonState = digitalRead(BOOT_BUTTON_PIN);  // Read the state of the BOOT button
   if (prevBootButtonState != bootButtonState) {
     // Boot button change
     if (bootButtonState == LOW) {  // If the BOOT button is pressed for first time (logic is reversed due to pullup resistor)
-      // Do something when the BOOT button is pressed
-      //topMotor.rotate(180);
-      printTopMotorStuff();
-      //checkTopMotor();
+      Serial.println("Starting");
+      manualRotate();
       
+      
+      
+      Serial.println("Done");
     } else {
       
     }
     prevBootButtonState = bootButtonState;
   }
   
-/*
-  if (wifiOkStatus && ntpOkStatus && topMotorStatus != MOTOR_STALLED) {
-    digitalWrite(BLUE_BUILT_IN_LED, HIGH);
-  } else {
-    Serial.println("Something is wrong");
-    digitalWrite(BLUE_BUILT_IN_LED, LOW);
-  }
-  */
+
+  updateStatusLED();
+  
   delay(100); // Power saving mechanism to slow down the main loop
 }
