@@ -1,51 +1,37 @@
+#include <WiFi.h>
+#include <ESPAsyncWebServer.h>
+#include <ArduinoJson.h>
+#include <string>
+#include <sstream>
+
+
 # define BLUE_BUILT_IN_LED 2  
 # define EN_BUTTON_PIN 3
 # define BOOT_BUTTON_PIN 0
 
-#define STEPPER_STEPS 200 // Change this according to your stepper motor specs (usually 200 steps for NEMA 17)
-
 // unsure if that needs to be on a PULL_DOWN (2)
-#define DIR_PIN 13
+#include  "./StepperMotor.h"
 #define STEP_PIN 12
+#define DIR_PIN 13
+StepperMotor topMotor(STEP_PIN, DIR_PIN); // this stepper has 200 steps per rotation but not sure we need that
 
-#include <mutex>
-#include <WiFi.h>
-#include <ESPAsyncWebServer.h>
-#include <ArduinoJson.h>
-//#include <Stepper.h>
-//Stepper stepper(200, STEP_PIN, DIR_PIN);
+
 
 // This file specifies wifi creds. Ex:
 // #define WIFI_SSID "REPLACE WITH WIFI NAME"
 // #define WIFI_PASSWORD "REPLACE WITH WIFI PASSWORD"
 #include "./wifi-info.h"
 
-std::mutex change_request_mutex; 
-
-typedef enum {
-    MOTOR_UNKNOWN,
-    MOTOR_MOVING,
-    MOTOR_AT_TOP,
-    MOTOR_AT_BOTTOM
-} MotorState;
-
-MotorState topMotorStatus = MOTOR_UNKNOWN;
+long startTime = millis();
 
 // Other status stuff
 bool wifiOkStatus = false;
 bool ntpOkStatus = false;
 
 
-
 // Create an instance of the server
 AsyncWebServer server(80);
 
-
-void prepareTopMotor() {
-  pinMode(DIR_PIN, OUTPUT);
-  pinMode(STEP_PIN, OUTPUT);
-  //stepper.setSpeed(10);
-}
 
 void prepareStatusLED() {
   pinMode(BLUE_BUILT_IN_LED, OUTPUT);  // Setting the blue LED to be an output that we can set
@@ -61,8 +47,26 @@ void updateStatusLED() {
   }
 }
 
+std::string getHumanTime(long milliseconds) {
+  // Convert milliseconds to seconds.
+  long seconds = milliseconds / 1000;
+
+  // Get the number of hours, minutes, and seconds.
+  long hours = seconds / 3600;
+  seconds %= 3600;
+  long minutes = seconds / 60;
+  seconds %= 60;
+
+  // Create a string to store the human readable format.
+  std::stringstream ss;
+  ss << hours << " hours, " << minutes << " minutes, " << seconds << " seconds";
+  std::string human_readable = ss.str();
+
+  // Return the human readable format.
+  return human_readable;
+}
+
 void setup() {
-  prepareTopMotor(); // DO THIS FIRST TO STOP MOTOR FROM SPINNING ON BOOT
   prepareStatusLED();
 
   Serial.begin(9600);
@@ -82,48 +86,71 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   //server = AsyncWebServer(80);
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    std::lock_guard<std::mutex> lck(change_request_mutex);
-    if (topMotorStatus != MOTOR_MOVING) {
-      if (request->hasParam("speed")) {
-        int speed = request->getParam("speed")->value().toInt();
-        if (speed > 240) {
-          speed = 240;
-        }
-        Serial.print("Setting speed to ");
-        Serial.println(speed);
+  server.on("/top/move", HTTP_POST, [](AsyncWebServerRequest *request){
+    if (request->hasParam("wait")) {
+      int wait = request->getParam("wait")->value().toInt();
+      if (wait <= 3) {
+        wait = 3;
       }
-      if (request->hasParam("rotations")) {
-        int rotations = request->getParam("rotations")->value().toInt();
-        Serial.print("Spinning ");
-        Serial.print(rotations);
-        Serial.println(" degrees");
-        
+      Serial.print("Setting wait to ");
+      Serial.println(wait);
+      topMotor.setStepWait(wait);
+    }
+
+    if (request->hasParam("steps") && request->hasParam("direction")) {
+      int steps = request->getParam("steps")->value().toInt();
+      Serial.print("Spinning ");
+      Serial.print(steps);
+      Serial.println(" steps");
+      if (steps < 0) {
+        steps = 0;
+      } else if (steps > 1000000) {
+        steps = 1000000;
+      }
+
+      if (steps == 0) {
+        request->send(200, "text/plain", "Done already!"); // check type
+      } else {
+        if (request->getParam("direction")->value().compareTo("clockwise") == 0) {
+          if (topMotor.startDrive(true, steps)) {
+            request->send(200, "text/plain", "Moving clockwise"); // check type
+          } else {
+            request->send(413, "text/plain", "WAIT!");
+          }
+        } else {
+          if (topMotor.startDrive(false, steps)) {
+            request->send(200, "text/plain", "Moving counter"); // check type
+          } else {
+            request->send(413, "text/plain", "WAIT!");
+          }
+        }
       }
       
-      request->send(200, "text/plain", "YES!"); // check type
     } else {
-      request->send(413, "text/plain", "WAIT!");
+      request->send(400, "text/plain", "Missing parameters"); // check type
     }
   });
 
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request){
     DynamicJsonDocument doc(1024);
-
+    doc["uptime"] = getHumanTime(millis() - startTime);
     doc["wifi"] = wifiOkStatus;
     doc["ntp"] = ntpOkStatus;
-    switch (topMotorStatus) {
+    switch (topMotor.getStatus()) {
       case MOTOR_UNKNOWN:
         doc["motor"] = "unknown";
         break;
-      case MOTOR_AT_BOTTOM:
-        doc["motor"] = "bottom";
+      case MOTOR_AT_CLOCKWISE_MAX:
+        doc["motor"] = "clockwise max";
         break;
-      case MOTOR_AT_TOP:
-        doc["motor"] = "top";
+      case MOTOR_AT_COUNTER_MAX:
+        doc["motor"] = "counter max";
         break;
-      case MOTOR_MOVING:
-        doc["motor"] = "moving";
+      case MOTOR_MOVING_CLOCKWISE:
+        doc["motor"] = "moving clockwise";
+        break;
+      case MOTOR_MOVING_COUNTER:
+        doc["motor"] = "moving counter";
         break;
       default:
         doc["motor"] = "compiler error";
@@ -176,40 +203,37 @@ void checkNtpStatus() {
   }
 }
 
-
-void manualRotate() {
-  digitalWrite(DIR_PIN, HIGH); // Set the direction
-  for(int i = 0; i < STEPPER_STEPS*16; i++) {
-    digitalWrite(STEP_PIN, HIGH); // Make one step
-    delayMicroseconds(100); // Change this delay as needed
-    digitalWrite(STEP_PIN, LOW); // Reset step pin
-    delayMicroseconds(100); // Change this delay as needed
-  }
-}
-
 int prevBootButtonState = HIGH;
 void loop() {
-  checkWifiStatus();
-  checkNtpStatus();
-
   int bootButtonState = digitalRead(BOOT_BUTTON_PIN);  // Read the state of the BOOT button
   if (prevBootButtonState != bootButtonState) {
     // Boot button change
     if (bootButtonState == LOW) {  // If the BOOT button is pressed for first time (logic is reversed due to pullup resistor)
       Serial.println("Starting");
-      manualRotate();
       
-      
-      
+      digitalWrite(DIR_PIN, HIGH); // Set the direction
+      for(int i = 0; i < 200*16; i++) {
+        digitalWrite(STEP_PIN, HIGH); // Make one step
+        delayMicroseconds(100); // Change this delay as needed
+        digitalWrite(STEP_PIN, LOW); // Reset step pin
+        delayMicroseconds(100); // Change this delay as needed
+      }
+
       Serial.println("Done");
     } else {
       
     }
     prevBootButtonState = bootButtonState;
   }
-  
 
-  updateStatusLED();
+  if (topMotor.isMoving()) {
+    topMotor.continueDrive();
+  } else {
+    checkWifiStatus();
+    checkNtpStatus();
+
+    updateStatusLED();
+    delay(100); // Power saving mechanism to slow down the main loop
+  }
   
-  delay(100); // Power saving mechanism to slow down the main loop
 }
