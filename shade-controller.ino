@@ -1,13 +1,13 @@
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
-#include <string>
-#include <sstream>
+
 
 
 # define BLUE_BUILT_IN_LED 2  
 # define EN_BUTTON_PIN 3
 # define BOOT_BUTTON_PIN 0
+# define MAX_STEPS_AT_A_TIME 40000
 
 // unsure if that needs to be on a PULL_DOWN (2)
 #include  "./StepperMotor.h"
@@ -47,23 +47,18 @@ void updateStatusLED() {
   }
 }
 
-std::string getHumanTime(long milliseconds) {
-  // Convert milliseconds to seconds.
-  long seconds = milliseconds / 1000;
+void getHumanTime(long milliseconds, char* buffer) {
+  long long seconds = milliseconds / 1000;
+  long long minutes = seconds / 60;
+  long long hours = minutes / 60;
+  long long days = hours / 24;
 
-  // Get the number of hours, minutes, and seconds.
-  long hours = seconds / 3600;
-  seconds %= 3600;
-  long minutes = seconds / 60;
-  seconds %= 60;
+  // Calculate remaining hours, minutes and seconds
+  hours = hours % 24;
+  minutes = minutes % 60;
+  seconds = seconds % 60;
 
-  // Create a string to store the human readable format.
-  std::stringstream ss;
-  ss << hours << " hours, " << minutes << " minutes, " << seconds << " seconds";
-  std::string human_readable = ss.str();
-
-  // Return the human readable format.
-  return human_readable;
+  sprintf(buffer, "%lld days, %lld hours, %lld minutes, %lld seconds", days, hours, minutes, seconds);
 }
 
 void setup() {
@@ -89,8 +84,8 @@ void setup() {
   server.on("/top/move", HTTP_POST, [](AsyncWebServerRequest *request){
     if (request->hasParam("wait")) {
       int wait = request->getParam("wait")->value().toInt();
-      if (wait <= 3) {
-        wait = 3;
+      if (wait <= 1) {
+        wait = 1;
       }
       Serial.print("Setting wait to ");
       Serial.println(wait);
@@ -104,8 +99,8 @@ void setup() {
       Serial.println(" steps");
       if (steps < 0) {
         steps = 0;
-      } else if (steps > 1000000) {
-        steps = 1000000;
+      } else if (steps > MAX_STEPS_AT_A_TIME) {
+        steps = MAX_STEPS_AT_A_TIME;
       }
 
       if (steps == 0) {
@@ -133,7 +128,9 @@ void setup() {
 
   server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request){
     DynamicJsonDocument doc(1024);
-    doc["uptime"] = getHumanTime(millis() - startTime);
+    char buffer[150];
+    getHumanTime(millis() - startTime, buffer);
+    doc["uptime"] = buffer;
     doc["wifi"] = wifiOkStatus;
     doc["ntp"] = ntpOkStatus;
     switch (topMotor.getStatus()) {
