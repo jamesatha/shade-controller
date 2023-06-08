@@ -35,15 +35,15 @@ AsyncWebServer server(80);
 
 void prepareStatusLED() {
   pinMode(BLUE_BUILT_IN_LED, OUTPUT);  // Setting the blue LED to be an output that we can set
-  digitalWrite(BLUE_BUILT_IN_LED, LOW); // Turn off the blue light so we know we are not ready
+  digitalWrite(BLUE_BUILT_IN_LED, HIGH); // Turn off the blue light so we know we are not ready
 }
 
 void updateStatusLED() {
   if (wifiOkStatus && ntpOkStatus) {
-    digitalWrite(BLUE_BUILT_IN_LED, HIGH);
+    digitalWrite(BLUE_BUILT_IN_LED, LOW);
   } else {
     Serial.println("Something is wrong");
-    digitalWrite(BLUE_BUILT_IN_LED, LOW);
+    digitalWrite(BLUE_BUILT_IN_LED, HIGH);
   }
 }
 
