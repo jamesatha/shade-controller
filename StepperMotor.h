@@ -2,6 +2,7 @@
 #define STEPPER_MOTOR_H
 #include <Arduino.h>
 #include <mutex>
+#include <set>
 
 typedef enum MotorStatus {
     MOTOR_UNKNOWN,
@@ -14,28 +15,34 @@ typedef enum MotorStatus {
 class StepperMotor {
     public:
         StepperMotor(
+          unsigned int enablePin,
           unsigned int stepPin, 
           unsigned int dirPin, 
-          unsigned int waitTimeMicroseconds = 10000,
+          unsigned int waitTimeMicroseconds = 2,
           MotorStatus status = MOTOR_UNKNOWN);
 
         void setStepWait(unsigned int waitTimeMicroseconds);
 
-        [[nodiscard]] bool setStatus(MotorStatus status);
+        [[nodiscard]] bool setStatus(MotorStatus status, bool force=false);
         MotorStatus getStatus();
+        bool isEnabled();
         bool isMoving();
 
 
-        [[nodiscard]] bool startDrive(bool clockwise, unsigned int steps, MotorStatus desiredEndState = MOTOR_UNKNOWN);
+        [[nodiscard]] bool startDrive(bool clockwise, unsigned int steps, MotorStatus desiredEndState);
         void continueDrive();
     private:
-        unsigned int dirPin, stepPin, waitTimeMicroseconds;
+        unsigned int enablePin, dirPin, stepPin, waitTimeMicroseconds;
         MotorStatus status;
-        std::mutex status_mutex;
+        bool motorEnabled;
+        std::mutex statusMutex;
+        std::set<MotorStatus> statesToDisableMotor;
 
         MotorStatus movingEndState;
         unsigned int stepsLeft;
 
         void executeSteps();
+        void enableMotor();
+        void disableMotor();
 };
 #endif

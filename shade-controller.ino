@@ -13,7 +13,8 @@
 #include  "./StepperMotor.h"
 #define STEP_PIN 12
 #define DIR_PIN 13
-StepperMotor topMotor(STEP_PIN, DIR_PIN); // this stepper has 200 steps per rotation but not sure we need that
+#define ENABLE_PIN 14
+StepperMotor topMotor(ENABLE_PIN, STEP_PIN, DIR_PIN); // this stepper has 200 steps per rotation but not sure we need that
 
 
 
@@ -21,6 +22,13 @@ StepperMotor topMotor(STEP_PIN, DIR_PIN); // this stepper has 200 steps per rota
 // #define WIFI_SSID "REPLACE WITH WIFI NAME"
 // #define WIFI_PASSWORD "REPLACE WITH WIFI PASSWORD"
 #include "./wifi-info.h"
+
+typedef struct {
+  bool upIsClockwise;
+  int steps;
+} Configuration;
+
+Configuration* configuration = NULL;
 
 long startTime = millis();
 
@@ -31,7 +39,6 @@ bool ntpOkStatus = false;
 
 // Create an instance of the server
 AsyncWebServer server(80);
-
 
 void prepareStatusLED() {
   pinMode(BLUE_BUILT_IN_LED, OUTPUT);  // Setting the blue LED to be an output that we can set
@@ -80,7 +87,42 @@ void setup() {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
-  //server = AsyncWebServer(80);
+  if (WiFi.localIP().toString().compareTo("192.168.68.65") == 0) {
+    Serial.println("Found IP address: 192.168.68.65");
+    configuration = (Configuration *)malloc(sizeof(Configuration));
+    configuration->upIsClockwise = true;
+    configuration->steps = 16000;
+    topMotor.setStatus(MOTOR_AT_CLOCKWISE_MAX, true);
+  } else {
+    // Nothing
+  }
+
+  server.on("/top/down", HTTP_POST, [](AsyncWebServerRequest *request) {
+    if (configuration == NULL) {
+      request->send(400, "text/plain", "Configuration Missing");
+    } else {
+      MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_COUNTER_MAX : MOTOR_AT_CLOCKWISE_MAX;
+      if (topMotor.startDrive(!configuration->upIsClockwise, configuration->steps, endState)) {
+        request->send(200, "text/plain", "Moving down"); // check type
+      } else {
+        request->send(413, "text/plain", "WAIT!");
+      }
+    }
+  });
+
+  server.on("/top/up", HTTP_POST, [](AsyncWebServerRequest *request) {
+    MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_CLOCKWISE_MAX : MOTOR_AT_COUNTER_MAX;
+    if (configuration == NULL) {
+      request->send(400, "text/plain", "Configuration Missing");
+    } else {
+      if (topMotor.startDrive(configuration->upIsClockwise, configuration->steps, endState)) {
+        request->send(200, "text/plain", "Moving up"); // check type
+      } else {
+        request->send(413, "text/plain", "WAIT!");
+      }
+    }
+  });
+
   server.on("/top/move", HTTP_POST, [](AsyncWebServerRequest *request){
     if (request->hasParam("wait")) {
       int wait = request->getParam("wait")->value().toInt();
@@ -107,13 +149,13 @@ void setup() {
         request->send(200, "text/plain", "Done already!"); // check type
       } else {
         if (request->getParam("direction")->value().compareTo("clockwise") == 0) {
-          if (topMotor.startDrive(true, steps)) {
+          if (topMotor.startDrive(true, steps, MOTOR_UNKNOWN)) {
             request->send(200, "text/plain", "Moving clockwise"); // check type
           } else {
             request->send(413, "text/plain", "WAIT!");
           }
         } else {
-          if (topMotor.startDrive(false, steps)) {
+          if (topMotor.startDrive(false, steps, MOTOR_UNKNOWN)) {
             request->send(200, "text/plain", "Moving counter"); // check type
           } else {
             request->send(413, "text/plain", "WAIT!");
@@ -133,6 +175,7 @@ void setup() {
     doc["uptime"] = buffer;
     doc["wifi"] = wifiOkStatus;
     doc["ntp"] = ntpOkStatus;
+    doc["motor_enabled"] = topMotor.isEnabled();
     switch (topMotor.getStatus()) {
       case MOTOR_UNKNOWN:
         doc["motor"] = "unknown";
