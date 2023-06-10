@@ -43,6 +43,7 @@ void StepperMotor::setStepWait(unsigned int waitTimeMicroseconds) {
 
 void StepperMotor::enableMotor() {
   digitalWrite(this->enablePin, LOW);
+  delay(1); // allow time for motor to get to a good state
   this->motorEnabled = true;
 }
 
