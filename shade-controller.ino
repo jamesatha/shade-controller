@@ -3,7 +3,6 @@
 #include <ArduinoJson.h>
 
 
-
 # define BLUE_BUILT_IN_LED 2  
 # define EN_BUTTON_PIN 3
 # define BOOT_BUTTON_PIN 0
@@ -16,7 +15,13 @@
 #define ENABLE_PIN 14
 StepperMotor topMotor(ENABLE_PIN, STEP_PIN, DIR_PIN); // this stepper has 200 steps per rotation but not sure we need that
 
-
+TaskHandle_t taskHandle;
+void SpinTask(void * parameters) {
+  while (topMotor.isMoving()) {
+    topMotor.continueDrive();
+  }
+  vTaskDelete(taskHandle);
+}
 
 // This file specifies wifi creds. Ex:
 // #define WIFI_SSID "REPLACE WITH WIFI NAME"
@@ -96,13 +101,24 @@ void setup() {
   } else {
     // Nothing
   }
-
+  server.on("/top/disable", HTTP_POST, [](AsyncWebServerRequest *request) {
+  });
+  server.on("/top/stop", HTTP_POST, [](AsyncWebServerRequest *request) {
+  });
   server.on("/top/down", HTTP_POST, [](AsyncWebServerRequest *request) {
     if (configuration == NULL) {
       request->send(400, "text/plain", "Configuration Missing");
     } else {
       MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_COUNTER_MAX : MOTOR_AT_CLOCKWISE_MAX;
       if (topMotor.startDrive(!configuration->upIsClockwise, configuration->steps, endState)) {
+        xTaskCreatePinnedToCore(
+             SpinTask,      /* Task function. */
+             "SpinTask",    /* name of task. */
+             100000,         /* Stack size of task */
+             NULL,          /* parameter of the task */
+             1,             /* priority of the task */
+             &taskHandle,   /* Task handle to keep track of created task */
+             (xPortGetCoreID()+1) %2);         /* pin task to not used core */
         request->send(200, "text/plain", "Moving down"); // check type
       } else {
         request->send(413, "text/plain", "WAIT!");
@@ -116,6 +132,14 @@ void setup() {
       request->send(400, "text/plain", "Configuration Missing");
     } else {
       if (topMotor.startDrive(configuration->upIsClockwise, configuration->steps, endState)) {
+        xTaskCreatePinnedToCore(
+             SpinTask,      /* Task function. */
+             "SpinTask",    /* name of task. */
+             100000,         /* Stack size of task */
+             NULL,          /* parameter of the task */
+             1,             /* priority of the task */
+             &taskHandle,   /* Task handle to keep track of created task */
+             (xPortGetCoreID()+1) %2);         /* pin task to not used core */
         request->send(200, "text/plain", "Moving up"); // check type
       } else {
         request->send(413, "text/plain", "WAIT!");
@@ -266,14 +290,9 @@ void loop() {
     prevBootButtonState = bootButtonState;
   }
 
-  if (topMotor.isMoving()) {
-    topMotor.continueDrive();
-  } else {
-    checkWifiStatus();
-    checkNtpStatus();
+  checkWifiStatus();
+  checkNtpStatus();
 
-    updateStatusLED();
-    delay(100); // Power saving mechanism to slow down the main loop
-  }
-  
+  updateStatusLED();
+  delay(100); // Power saving mechanism to slow down the main loop  
 }

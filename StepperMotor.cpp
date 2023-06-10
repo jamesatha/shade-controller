@@ -25,6 +25,7 @@ void StepperMotor::setStepWait(unsigned int waitTimeMicroseconds) {
   std::lock_guard<std::mutex> lck(statusMutex);
   if (force) {
     this->status = desiredStatus;
+    return true;
   }
   if (desiredStatus == MOTOR_MOVING_CLOCKWISE && (this->status == MOTOR_UNKNOWN || this->status == MOTOR_AT_COUNTER_MAX)) {
     this->status = desiredStatus;
@@ -92,33 +93,26 @@ bool StepperMotor::startDrive(bool clockwise, unsigned int steps, MotorStatus de
   this->enableMotor();
 
   this->stepsLeft = steps;
-  this->continueDrive();
 
   return true;
 }
 
 void StepperMotor::executeSteps() {
-  int maxSteps = 1000 / this->waitTimeMicroseconds;
-  int curStepCount = 0;
-    while (curStepCount < maxSteps && this->stepsLeft > 0) {
-      Serial.println("step");
-      digitalWrite(this->stepPin, HIGH); // Make one step
-      delayMicroseconds(this->waitTimeMicroseconds); // Change this delay as needed
-      digitalWrite(this->stepPin, LOW); // Reset step pin
-      delayMicroseconds(this->waitTimeMicroseconds); // Change this delay as needed
-      curStepCount++;
-      this->stepsLeft--;
-    }
+  while (this->stepsLeft > 0) {
+    digitalWrite(this->stepPin, HIGH); // Make one step
+    delayMicroseconds(this->waitTimeMicroseconds); // Change this delay as needed
+    digitalWrite(this->stepPin, LOW); // Reset step pin
+    delayMicroseconds(this->waitTimeMicroseconds); // Change this delay as needed
+    this->stepsLeft--;
+  }
 
-    if (this->stepsLeft == 0) {
-      Serial.println("ENDED!");
-      this->status = this->movingEndState;
+  Serial.println("ENDED!");
+  this->status = this->movingEndState;
 
-      if (this->statesToDisableMotor.find(this->status) != this->statesToDisableMotor.end()) {
-        // We will disable the motor
-        this->disableMotor();
-      }
-    }
+  if (this->statesToDisableMotor.find(this->status) != this->statesToDisableMotor.end()) {
+    // We will disable the motor
+    this->disableMotor();
+  }
 }
 
 void StepperMotor::continueDrive() {
