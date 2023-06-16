@@ -31,6 +31,8 @@ class StepperMotor {
 
         [[nodiscard]] bool startDrive(bool clockwise, unsigned int steps, MotorStatus desiredEndState);
         void continueDrive();
+        void stopMotor();
+        void disableMotor();
     private:
         unsigned int enablePin, dirPin, stepPin, waitTimeMicroseconds;
         MotorStatus status;
@@ -43,6 +45,5 @@ class StepperMotor {
 
         void executeSteps();
         void enableMotor();
-        void disableMotor();
 };
 #endif

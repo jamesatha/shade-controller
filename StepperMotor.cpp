@@ -48,8 +48,14 @@ void StepperMotor::enableMotor() {
   this->motorEnabled = true;
 }
 
+void StepperMotor::stopMotor() {
+  this->movingEndState = MOTOR_UNKNOWN;
+  this->stepsLeft = -1;
+}
+
 void StepperMotor::disableMotor() {
   digitalWrite(this->enablePin, HIGH);
+  this->stopMotor();
   this->motorEnabled = false;
 }
 
@@ -111,7 +117,7 @@ void StepperMotor::executeSteps() {
 
   if (this->statesToDisableMotor.find(this->status) != this->statesToDisableMotor.end()) {
     // We will disable the motor
-    this->disableMotor();
+    this->disableMotor(); // THIS ISN'T HAPPENING YET!
   }
 }
 

@@ -73,6 +73,17 @@ void getHumanTime(long milliseconds, char* buffer) {
   sprintf(buffer, "%lld days, %lld hours, %lld minutes, %lld seconds", days, hours, minutes, seconds);
 }
 
+void startTopMotorSpinTask() {
+  xTaskCreatePinnedToCore(
+    SpinTask,      /* Task function. */
+    "SpinTask",    /* name of task. */
+    100000,         /* Stack size of task */
+    NULL,          /* parameter of the task */
+    1,             /* priority of the task */
+    &taskHandle,   /* Task handle to keep track of created task */
+    (xPortGetCoreID()+1) %2);         /* pin task to not used core */
+}
+
 void setup() {
   prepareStatusLED();
 
@@ -102,8 +113,15 @@ void setup() {
     // Nothing
   }
   server.on("/top/disable", HTTP_POST, [](AsyncWebServerRequest *request) {
+    topMotor.disableMotor();
+    delay(1);
+    topMotor.setStatus(MOTOR_UNKNOWN, true);
   });
+
   server.on("/top/stop", HTTP_POST, [](AsyncWebServerRequest *request) {
+    topMotor.stopMotor();
+    delay(1);
+    topMotor.setStatus(MOTOR_UNKNOWN, true);
   });
   server.on("/top/down", HTTP_POST, [](AsyncWebServerRequest *request) {
     if (configuration == NULL) {
@@ -111,14 +129,7 @@ void setup() {
     } else {
       MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_COUNTER_MAX : MOTOR_AT_CLOCKWISE_MAX;
       if (topMotor.startDrive(!configuration->upIsClockwise, configuration->steps, endState)) {
-        xTaskCreatePinnedToCore(
-             SpinTask,      /* Task function. */
-             "SpinTask",    /* name of task. */
-             100000,         /* Stack size of task */
-             NULL,          /* parameter of the task */
-             1,             /* priority of the task */
-             &taskHandle,   /* Task handle to keep track of created task */
-             (xPortGetCoreID()+1) %2);         /* pin task to not used core */
+        startTopMotorSpinTask();
         request->send(200, "text/plain", "Moving down"); // check type
       } else {
         request->send(413, "text/plain", "WAIT!");
@@ -132,14 +143,7 @@ void setup() {
       request->send(400, "text/plain", "Configuration Missing");
     } else {
       if (topMotor.startDrive(configuration->upIsClockwise, configuration->steps, endState)) {
-        xTaskCreatePinnedToCore(
-             SpinTask,      /* Task function. */
-             "SpinTask",    /* name of task. */
-             100000,         /* Stack size of task */
-             NULL,          /* parameter of the task */
-             1,             /* priority of the task */
-             &taskHandle,   /* Task handle to keep track of created task */
-             (xPortGetCoreID()+1) %2);         /* pin task to not used core */
+        startTopMotorSpinTask();
         request->send(200, "text/plain", "Moving up"); // check type
       } else {
         request->send(413, "text/plain", "WAIT!");
@@ -174,12 +178,14 @@ void setup() {
       } else {
         if (request->getParam("direction")->value().compareTo("clockwise") == 0) {
           if (topMotor.startDrive(true, steps, MOTOR_UNKNOWN)) {
+            startTopMotorSpinTask();
             request->send(200, "text/plain", "Moving clockwise"); // check type
           } else {
             request->send(413, "text/plain", "WAIT!");
           }
         } else {
           if (topMotor.startDrive(false, steps, MOTOR_UNKNOWN)) {
+            startTopMotorSpinTask();
             request->send(200, "text/plain", "Moving counter"); // check type
           } else {
             request->send(413, "text/plain", "WAIT!");
