@@ -12,6 +12,12 @@ typedef enum MotorStatus {
     MOTOR_AT_COUNTER_MAX
 };
 
+typedef struct {
+  volatile MotorStatus movingEndState;
+  volatile unsigned int stepsLeft;
+  volatile bool keepEnabledWhenCompleted;
+} MovingInfo;
+
 class StepperMotor {
     public:
         StepperMotor(
@@ -29,19 +35,17 @@ class StepperMotor {
         bool isMoving();
 
 
-        [[nodiscard]] bool startDrive(bool clockwise, unsigned int steps, MotorStatus desiredEndState);
+        [[nodiscard]] bool startDrive(bool clockwise, unsigned int steps, MotorStatus desiredEndState, bool keepEnabledWhenCompleted);
         void continueDrive();
         void stopMotor();
         void disableMotor();
     private:
         unsigned int enablePin, dirPin, stepPin, waitTimeMicroseconds;
-        MotorStatus status;
+        volatile MotorStatus status;
         bool motorEnabled;
         std::mutex statusMutex;
-        std::set<MotorStatus> statesToDisableMotor;
 
-        MotorStatus movingEndState;
-        unsigned int stepsLeft;
+        volatile MovingInfo movingInfo;
 
         void executeSteps();
         void enableMotor();

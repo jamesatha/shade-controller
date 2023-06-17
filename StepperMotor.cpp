@@ -7,9 +7,10 @@ StepperMotor::StepperMotor(
           unsigned int waitTimeMicroseconds,
           MotorStatus status): 
     enablePin(enablePin), stepPin(stepPin), dirPin(dirPin), waitTimeMicroseconds(waitTimeMicroseconds), status(status) {
-  this->movingEndState = MOTOR_UNKNOWN; 
-  this->stepsLeft = 0;
-  this->statesToDisableMotor = std::set<MotorStatus>();
+
+  this->movingInfo.keepEnabledWhenCompleted = true;
+  this->movingInfo.movingEndState = MOTOR_UNKNOWN;
+  this->movingInfo.stepsLeft = 0;
   
   pinMode(this->enablePin, OUTPUT);
   pinMode(this->stepPin, OUTPUT);
@@ -44,13 +45,13 @@ void StepperMotor::setStepWait(unsigned int waitTimeMicroseconds) {
 
 void StepperMotor::enableMotor() {
   digitalWrite(this->enablePin, LOW);
-  delay(1); // allow time for motor to get to a good state
+  delay(5); // allow time for motor to get to a good state
   this->motorEnabled = true;
 }
 
 void StepperMotor::stopMotor() {
-  this->movingEndState = MOTOR_UNKNOWN;
-  this->stepsLeft = -1;
+  this->movingInfo.movingEndState = MOTOR_UNKNOWN;
+  this->movingInfo.stepsLeft = -1;
 }
 
 void StepperMotor::disableMotor() {
@@ -71,7 +72,7 @@ bool StepperMotor::isMoving() {
   return this->status == MOTOR_MOVING_CLOCKWISE || this->status == MOTOR_MOVING_COUNTER;
 }
 
-bool StepperMotor::startDrive(bool clockwise, unsigned int steps, MotorStatus desiredEndState) {
+bool StepperMotor::startDrive(bool clockwise, unsigned int steps, MotorStatus desiredEndState, bool keepEnabledWhenCompleted) {
   if (steps == 0) {
     return false;
   }
@@ -79,7 +80,7 @@ bool StepperMotor::startDrive(bool clockwise, unsigned int steps, MotorStatus de
   if (desiredEndState == MOTOR_UNKNOWN || 
       (desiredEndState == MOTOR_AT_COUNTER_MAX && this->status == MOTOR_AT_CLOCKWISE_MAX) ||
       (desiredEndState == MOTOR_AT_CLOCKWISE_MAX && this->status == MOTOR_AT_COUNTER_MAX)) {
-    this->movingEndState = desiredEndState;
+    this->movingInfo.movingEndState = desiredEndState;
   } else {
     Serial.println("Error in end state change");
     return false;
@@ -98,26 +99,27 @@ bool StepperMotor::startDrive(bool clockwise, unsigned int steps, MotorStatus de
   // Make sure the motor is enabled
   this->enableMotor();
 
-  this->stepsLeft = steps;
+  this->movingInfo.stepsLeft = steps;
+  this->movingInfo.keepEnabledWhenCompleted = keepEnabledWhenCompleted;
 
   return true;
 }
 
 void StepperMotor::executeSteps() {
-  while (this->stepsLeft > 0) {
+  while (this->movingInfo.stepsLeft > 0) {
     digitalWrite(this->stepPin, HIGH); // Make one step
     delayMicroseconds(this->waitTimeMicroseconds); // Change this delay as needed
     digitalWrite(this->stepPin, LOW); // Reset step pin
     delayMicroseconds(this->waitTimeMicroseconds); // Change this delay as needed
-    this->stepsLeft--;
+    this->movingInfo.stepsLeft--;
   }
 
   Serial.println("ENDED!");
-  this->status = this->movingEndState;
+  this->status = this->movingInfo.movingEndState;
 
-  if (this->statesToDisableMotor.find(this->status) != this->statesToDisableMotor.end()) {
+  if (!this->movingInfo.keepEnabledWhenCompleted) {
     // We will disable the motor
-    this->disableMotor(); // THIS ISN'T HAPPENING YET!
+    this->disableMotor();
   }
 }
 

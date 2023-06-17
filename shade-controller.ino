@@ -128,7 +128,12 @@ void setup() {
       request->send(400, "text/plain", "Configuration Missing");
     } else {
       MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_COUNTER_MAX : MOTOR_AT_CLOCKWISE_MAX;
-      if (topMotor.startDrive(!configuration->upIsClockwise, configuration->steps, endState)) {
+      bool turnOff = request->hasParam("turnOff") && (
+          request->getParam("turnOff")->value().compareTo("true") == 0 ||
+          request->getParam("turnOff")->value().compareTo("True") == 0 ||
+          request->getParam("turnOff")->value().compareTo("TRUE") == 0
+        );
+      if (topMotor.startDrive(!configuration->upIsClockwise, configuration->steps, endState, !turnOff)) {
         startTopMotorSpinTask();
         request->send(200, "text/plain", "Moving down"); // check type
       } else {
@@ -142,7 +147,12 @@ void setup() {
     if (configuration == NULL) {
       request->send(400, "text/plain", "Configuration Missing");
     } else {
-      if (topMotor.startDrive(configuration->upIsClockwise, configuration->steps, endState)) {
+      bool turnOff = request->hasParam("turnOff") && (
+          request->getParam("turnOff")->value().compareTo("true") == 0 ||
+          request->getParam("turnOff")->value().compareTo("True") == 0 ||
+          request->getParam("turnOff")->value().compareTo("TRUE") == 0
+        );
+      if (topMotor.startDrive(configuration->upIsClockwise, configuration->steps, endState, !turnOff)) {
         startTopMotorSpinTask();
         request->send(200, "text/plain", "Moving up"); // check type
       } else {
@@ -176,15 +186,20 @@ void setup() {
       if (steps == 0) {
         request->send(200, "text/plain", "Done already!"); // check type
       } else {
+        bool turnOff = request->hasParam("turnOff") && (
+          request->getParam("turnOff")->value().compareTo("true") == 0 ||
+          request->getParam("turnOff")->value().compareTo("True") == 0 ||
+          request->getParam("turnOff")->value().compareTo("TRUE") == 0
+        );
         if (request->getParam("direction")->value().compareTo("clockwise") == 0) {
-          if (topMotor.startDrive(true, steps, MOTOR_UNKNOWN)) {
+          if (topMotor.startDrive(true, steps, MOTOR_UNKNOWN, !turnOff)) {
             startTopMotorSpinTask();
             request->send(200, "text/plain", "Moving clockwise"); // check type
           } else {
             request->send(413, "text/plain", "WAIT!");
           }
         } else {
-          if (topMotor.startDrive(false, steps, MOTOR_UNKNOWN)) {
+          if (topMotor.startDrive(false, steps, MOTOR_UNKNOWN, !turnOff)) {
             startTopMotorSpinTask();
             request->send(200, "text/plain", "Moving counter"); // check type
           } else {
