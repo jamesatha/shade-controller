@@ -14,7 +14,7 @@ typedef enum MotorStatus {
 
 typedef struct {
   volatile MotorStatus movingEndState;
-  volatile unsigned int stepsLeft;
+  volatile int stepsLeft;
   volatile bool keepEnabledWhenCompleted;
 } MovingInfo;
 

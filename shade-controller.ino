@@ -17,6 +17,9 @@ StepperMotor topMotor(ENABLE_PIN, STEP_PIN, DIR_PIN); // this stepper has 200 st
 
 TaskHandle_t taskHandle;
 void SpinTask(void * parameters) {
+  __sync_synchronize();
+  delay(1);
+
   while (topMotor.isMoving()) {
     topMotor.continueDrive();
   }

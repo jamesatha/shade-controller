@@ -1,4 +1,7 @@
 #include  "./StepperMotor.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+#include "esp_system.h"
 
 StepperMotor::StepperMotor(
           unsigned int enablePin,
@@ -45,7 +48,7 @@ void StepperMotor::setStepWait(unsigned int waitTimeMicroseconds) {
 
 void StepperMotor::enableMotor() {
   digitalWrite(this->enablePin, LOW);
-  delay(5); // allow time for motor to get to a good state
+  delay(10); // allow time for motor to get to a good state
   this->motorEnabled = true;
 }
 
@@ -69,6 +72,7 @@ MotorStatus StepperMotor::getStatus() {
 }
 
 bool StepperMotor::isMoving() {
+  Serial.println(this->status == MOTOR_MOVING_CLOCKWISE || this->status == MOTOR_MOVING_COUNTER);
   return this->status == MOTOR_MOVING_CLOCKWISE || this->status == MOTOR_MOVING_COUNTER;
 }
 
@@ -101,12 +105,17 @@ bool StepperMotor::startDrive(bool clockwise, unsigned int steps, MotorStatus de
 
   this->movingInfo.stepsLeft = steps;
   this->movingInfo.keepEnabledWhenCompleted = keepEnabledWhenCompleted;
+  __sync_synchronize();
 
   return true;
 }
 
 void StepperMotor::executeSteps() {
+  __sync_synchronize();
+  Serial.printf("executeSteps: %d\n", this->movingInfo.stepsLeft);
   while (this->movingInfo.stepsLeft > 0) {
+    Serial.print("   ");
+    Serial.println(this->movingInfo.stepsLeft);
     digitalWrite(this->stepPin, HIGH); // Make one step
     delayMicroseconds(this->waitTimeMicroseconds); // Change this delay as needed
     digitalWrite(this->stepPin, LOW); // Reset step pin
@@ -127,6 +136,7 @@ void StepperMotor::continueDrive() {
   Serial.println("Waiting on lock...");
   std::lock_guard<std::mutex> lck(statusMutex);
   Serial.println("   ... got lock");
+  Serial.println(this->movingInfo.stepsLeft);
   if (this->status == MOTOR_MOVING_CLOCKWISE) {
     digitalWrite(this->dirPin, HIGH);
     this->executeSteps();
