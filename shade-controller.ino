@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
+#include "./stupid-synchronization-helper.h"
 
 
 # define BLUE_BUILT_IN_LED 2  
@@ -17,12 +18,12 @@ StepperMotor topMotor(ENABLE_PIN, STEP_PIN, DIR_PIN); // this stepper has 200 st
 
 TaskHandle_t taskHandle;
 void SpinTask(void * parameters) {
-  __sync_synchronize();
-  delay(1);
+  memory_barrier();
 
-  while (topMotor.isMoving()) {
+  do {
     topMotor.continueDrive();
-  }
+  } while (topMotor.isMoving());
+  
   vTaskDelete(taskHandle);
 }
 

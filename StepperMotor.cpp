@@ -1,7 +1,6 @@
 #include  "./StepperMotor.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
-#include "esp_system.h"
+#include "./stupid-synchronization-helper.h"
+
 
 StepperMotor::StepperMotor(
           unsigned int enablePin,
@@ -72,6 +71,7 @@ MotorStatus StepperMotor::getStatus() {
 }
 
 bool StepperMotor::isMoving() {
+  memory_barrier();
   Serial.println(this->status == MOTOR_MOVING_CLOCKWISE || this->status == MOTOR_MOVING_COUNTER);
   return this->status == MOTOR_MOVING_CLOCKWISE || this->status == MOTOR_MOVING_COUNTER;
 }
@@ -105,13 +105,13 @@ bool StepperMotor::startDrive(bool clockwise, unsigned int steps, MotorStatus de
 
   this->movingInfo.stepsLeft = steps;
   this->movingInfo.keepEnabledWhenCompleted = keepEnabledWhenCompleted;
-  __sync_synchronize();
+  memory_barrier();
 
   return true;
 }
 
 void StepperMotor::executeSteps() {
-  __sync_synchronize();
+  memory_barrier();
   Serial.printf("executeSteps: %d\n", this->movingInfo.stepsLeft);
   while (this->movingInfo.stepsLeft > 0) {
     Serial.print("   ");
@@ -133,6 +133,7 @@ void StepperMotor::executeSteps() {
 }
 
 void StepperMotor::continueDrive() {
+  memory_barrier();
   Serial.println("Waiting on lock...");
   std::lock_guard<std::mutex> lck(statusMutex);
   Serial.println("   ... got lock");
