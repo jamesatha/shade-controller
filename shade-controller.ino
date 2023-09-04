@@ -107,14 +107,22 @@ void setup() {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
+  // CHANGE ONE OF THESE
   if (WiFi.localIP().toString().compareTo("192.168.68.65") == 0) {
     Serial.println("Found IP address: 192.168.68.65");
     configuration = (Configuration *)malloc(sizeof(Configuration));
     configuration->upIsClockwise = true;
     configuration->steps = 16000;
     topMotor.setStatus(MOTOR_AT_CLOCKWISE_MAX, true);
+  } else if (WiFi.localIP().toString().compareTo("192.168.68.59") == 0) {
+    Serial.println("Found IP address: 192.168.68.59");
+    configuration = (Configuration *)malloc(sizeof(Configuration));
+    configuration->upIsClockwise = true;
+    configuration->steps = 16000;
+    topMotor.setStatus(MOTOR_AT_CLOCKWISE_MAX, true);
   } else {
-    // Nothing
+    // NO CONFIGURATION FOUND!
+    Serial.println("UNKNOWN IP ADDRESS");
   }
   server.on("/top/disable", HTTP_POST, [](AsyncWebServerRequest *request) {
     topMotor.disableMotor();
@@ -127,9 +135,9 @@ void setup() {
     delay(1);
     topMotor.setStatus(MOTOR_UNKNOWN, true);
   });
-  server.on("/top/down", HTTP_POST, [](AsyncWebServerRequest *request) {
+  server.on("/top/open", HTTP_POST, [](AsyncWebServerRequest *request) {
     if (configuration == NULL) {
-      request->send(400, "text/plain", "Configuration Missing");
+      request->send(500, "text/plain", "Configuration Missing");
     } else {
       MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_COUNTER_MAX : MOTOR_AT_CLOCKWISE_MAX;
       bool turnOff = request->hasParam("turnOff") && (
@@ -146,10 +154,10 @@ void setup() {
     }
   });
 
-  server.on("/top/up", HTTP_POST, [](AsyncWebServerRequest *request) {
+  server.on("/top/close", HTTP_POST, [](AsyncWebServerRequest *request) {
     MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_CLOCKWISE_MAX : MOTOR_AT_COUNTER_MAX;
     if (configuration == NULL) {
-      request->send(400, "text/plain", "Configuration Missing");
+      request->send(500, "text/plain", "Configuration Missing");
     } else {
       bool turnOff = request->hasParam("turnOff") && (
           request->getParam("turnOff")->value().compareTo("true") == 0 ||
@@ -158,7 +166,7 @@ void setup() {
         );
       if (topMotor.startDrive(configuration->upIsClockwise, configuration->steps, endState, !turnOff)) {
         startTopMotorSpinTask();
-        request->send(200, "text/plain", "Moving up"); // check type
+        request->send(200, "text/plain", "Moving up"); // check type -- TODO Make JSON
       } else {
         request->send(413, "text/plain", "WAIT!");
       }
@@ -217,7 +225,7 @@ void setup() {
     }
   });
 
-  server.on("/status", HTTP_GET, [](AsyncWebServerRequest *request){
+  server.on("/top/status", HTTP_GET, [](AsyncWebServerRequest *request){
     DynamicJsonDocument doc(1024);
     char buffer[150];
     getHumanTime(millis() - startTime, buffer);
@@ -262,7 +270,6 @@ void checkWifiStatus() {
   unsigned long currentMillis = millis();
   // if WiFi is down, try reconnecting every CHECK_WIFI_TIME seconds
   if ((currentMillis - previousWifiCheckMillis >= wifiCheckInterval) && (WiFi.status() != WL_CONNECTED)) {
-    Serial.print(currentMillis);
     Serial.println("Reconnecting to WiFi...");
     WiFi.disconnect();
     WiFi.reconnect();
