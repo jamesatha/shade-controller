@@ -77,6 +77,13 @@ void getHumanTime(long milliseconds, char* buffer) {
   sprintf(buffer, "%lld days, %lld hours, %lld minutes, %lld seconds", days, hours, minutes, seconds);
 }
 
+// TODO: start using this
+String convertJsonToString(DynamicJsonDocument doc) {
+  String jsonString;
+  serializeJsonPretty(doc, jsonString); // switch method to serializeJson eventually
+  return jsonString;
+}
+
 void startTopMotorSpinTask() {
   xTaskCreatePinnedToCore(
     SpinTask,      /* Task function. */
@@ -108,8 +115,8 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   // CHANGE ONE OF THESE
-  if (WiFi.localIP().toString().compareTo("192.168.68.65") == 0) {
-    Serial.println("Found IP address: 192.168.68.65");
+  if (WiFi.localIP().toString().compareTo("192.168.68.65") == 0 || WiFi.localIP().toString().compareTo("192.168.68.89") == 0) {
+    Serial.println("Found configuration for top left motor");
     configuration = (Configuration *)malloc(sizeof(Configuration));
     configuration->upIsClockwise = true;
     configuration->steps = 16000;
@@ -257,6 +264,13 @@ void setup() {
     serializeJsonPretty(doc, jsonString); // switch method to serializeJson eventually
     
     request->send(200, "application/json", jsonString);
+  });
+
+  server.onNotFound([](AsyncWebServerRequest *request) {
+    DynamicJsonDocument doc(1024);
+    doc["error"] = "not implemented";
+    
+    request->send(501, "application/json", "Not found. This is the default handler.");
   });
 
   server.begin();
