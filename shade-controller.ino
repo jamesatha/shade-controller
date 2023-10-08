@@ -90,9 +90,9 @@ void startTopMotorSpinTask() {
     "SpinTask",    /* name of task. */
     100000,         /* Stack size of task */
     NULL,          /* parameter of the task */
-    1,             /* priority of the task */
+    0,             /* priority of the task */
     &taskHandle,   /* Task handle to keep track of created task */
-    (xPortGetCoreID()+1) %2);         /* pin task to not used core */
+    tskNO_AFFINITY);         /* core assignment */
 }
 
 void setup() {
@@ -120,7 +120,7 @@ void setup() {
     configuration = (Configuration *)malloc(sizeof(Configuration));
     configuration->upIsClockwise = true;
     configuration->steps = 16000;
-    topMotor.setStatus(MOTOR_AT_CLOCKWISE_MAX, true);
+    topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
   } else if (WiFi.localIP().toString().compareTo("192.168.68.59") == 0) {
     Serial.println("Found IP address: 192.168.68.59");
     configuration = (Configuration *)malloc(sizeof(Configuration));
@@ -131,6 +131,7 @@ void setup() {
     // NO CONFIGURATION FOUND!
     Serial.println("UNKNOWN IP ADDRESS");
   }
+  topMotor.setStepWait(500); // TODO: set this to a good default value
   server.on("/top/disable", HTTP_POST, [](AsyncWebServerRequest *request) {
     topMotor.disableMotor();
     delay(1);
@@ -183,7 +184,7 @@ void setup() {
   server.on("/top/move", HTTP_POST, [](AsyncWebServerRequest *request){
     if (request->hasParam("wait")) {
       int wait = request->getParam("wait")->value().toInt();
-      if (wait <= 1) {
+      if (wait <= 100) { // Change to to something better
         wait = 1;
       }
       Serial.print("Setting wait to ");
@@ -340,5 +341,5 @@ void loop() {
   checkNtpStatus();
 
   updateStatusLED();
-  delay(100); // Power saving mechanism to slow down the main loop  
+  delay(5000); // Power saving mechanism to slow down the main loop
 }

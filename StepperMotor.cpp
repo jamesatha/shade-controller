@@ -117,7 +117,7 @@ void StepperMotor::executeSteps() {
     Serial.print("   ");
     Serial.println(this->movingInfo.stepsLeft);
     digitalWrite(this->stepPin, HIGH); // Make one step
-    delayMicroseconds(this->waitTimeMicroseconds); // Change this delay as needed
+    delayMicroseconds(10); // This isn't necessary
     digitalWrite(this->stepPin, LOW); // Reset step pin
     delayMicroseconds(this->waitTimeMicroseconds); // Change this delay as needed
     this->movingInfo.stepsLeft--;
