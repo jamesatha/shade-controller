@@ -118,8 +118,8 @@ void setup() {
   if (WiFi.localIP().toString().compareTo("192.168.68.65") == 0 || WiFi.localIP().toString().compareTo("192.168.68.89") == 0) {
     Serial.println("Found configuration for top left motor");
     configuration = (Configuration *)malloc(sizeof(Configuration));
-    configuration->upIsClockwise = true;
-    configuration->steps = 16000;
+    configuration->upIsClockwise = false;
+    configuration->steps = 2000; // when on max step size
     topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
   } else if (WiFi.localIP().toString().compareTo("192.168.68.59") == 0) {
     Serial.println("Found IP address: 192.168.68.59");
@@ -154,6 +154,7 @@ void setup() {
           request->getParam("turnOff")->value().compareTo("TRUE") == 0
         );
       if (topMotor.startDrive(!configuration->upIsClockwise, configuration->steps, endState, !turnOff)) {
+        topMotor.setStepWait(300000);
         startTopMotorSpinTask();
         request->send(200, "text/plain", "Moving down"); // check type
       } else {
