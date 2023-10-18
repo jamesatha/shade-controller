@@ -83,7 +83,8 @@ bool StepperMotor::startDrive(bool clockwise, unsigned int steps, MotorStatus de
   
   if (desiredEndState == MOTOR_UNKNOWN || 
       (desiredEndState == MOTOR_AT_COUNTER_MAX && this->status == MOTOR_AT_CLOCKWISE_MAX) ||
-      (desiredEndState == MOTOR_AT_CLOCKWISE_MAX && this->status == MOTOR_AT_COUNTER_MAX)) {
+      (desiredEndState == MOTOR_AT_CLOCKWISE_MAX && this->status == MOTOR_AT_COUNTER_MAX) ||
+      steps == 1 /* Allow for 1 step changes that keep the state the same */) {
     this->movingInfo.movingEndState = desiredEndState;
   } else {
     Serial.println("Error in end state change");

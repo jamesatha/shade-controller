@@ -55,7 +55,7 @@ void prepareStatusLED() {
 }
 
 void updateStatusLED() {
-  if (wifiOkStatus && ntpOkStatus) {
+  if (wifiOkStatus) { // This no longer cares about ntpOkStatus
     digitalWrite(BLUE_BUILT_IN_LED, LOW);
   } else {
     Serial.println("Something is wrong");
@@ -119,7 +119,7 @@ void setup() {
     Serial.println("Found configuration for top left motor");
     configuration = (Configuration *)malloc(sizeof(Configuration));
     configuration->upIsClockwise = false;
-    configuration->steps = 2000; // when on max step size
+    configuration->steps = 4091; // when on max step size
     topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
   } else if (WiFi.localIP().toString().compareTo("192.168.68.59") == 0) {
     Serial.println("Found IP address: 192.168.68.59");
@@ -154,7 +154,7 @@ void setup() {
           request->getParam("turnOff")->value().compareTo("TRUE") == 0
         );
       if (topMotor.startDrive(!configuration->upIsClockwise, configuration->steps, endState, !turnOff)) {
-        topMotor.setStepWait(300000);
+        topMotor.setStepWait(29000);
         startTopMotorSpinTask();
         request->send(200, "text/plain", "Moving down"); // check type
       } else {
@@ -168,12 +168,15 @@ void setup() {
     if (configuration == NULL) {
       request->send(500, "text/plain", "Configuration Missing");
     } else {
-      bool turnOff = request->hasParam("turnOff") && (
+      // When this closes, it should always turn off. This might be configurable later
+      /*bool turnOff = request->hasParam("turnOff") && (
           request->getParam("turnOff")->value().compareTo("true") == 0 ||
           request->getParam("turnOff")->value().compareTo("True") == 0 ||
           request->getParam("turnOff")->value().compareTo("TRUE") == 0
         );
-      if (topMotor.startDrive(configuration->upIsClockwise, configuration->steps, endState, !turnOff)) {
+        */
+      if (topMotor.startDrive(configuration->upIsClockwise, configuration->steps, endState, false /*force motor off*/)) {
+        topMotor.setStepWait(13000);
         startTopMotorSpinTask();
         request->send(200, "text/plain", "Moving up"); // check type -- TODO Make JSON
       } else {
@@ -212,15 +215,21 @@ void setup() {
           request->getParam("turnOff")->value().compareTo("True") == 0 ||
           request->getParam("turnOff")->value().compareTo("TRUE") == 0
         );
+        bool keepState  = request->hasParam("keepState") && (
+          request->getParam("keepState")->value().compareTo("true") == 0 ||
+          request->getParam("keepState")->value().compareTo("True") == 0 ||
+          request->getParam("keepState")->value().compareTo("TRUE") == 0
+        );
+        MotorStatus nextStatus = keepState ? topMotor.getStatus() : MOTOR_UNKNOWN;
         if (request->getParam("direction")->value().compareTo("clockwise") == 0) {
-          if (topMotor.startDrive(true, steps, MOTOR_UNKNOWN, !turnOff)) {
+          if (topMotor.startDrive(true, steps, nextStatus, !turnOff)) {
             startTopMotorSpinTask();
             request->send(200, "text/plain", "Moving clockwise"); // check type
           } else {
             request->send(413, "text/plain", "WAIT!");
           }
         } else {
-          if (topMotor.startDrive(false, steps, MOTOR_UNKNOWN, !turnOff)) {
+          if (topMotor.startDrive(false, steps, nextStatus, !turnOff)) {
             startTopMotorSpinTask();
             request->send(200, "text/plain", "Moving counter"); // check type
           } else {
@@ -342,5 +351,5 @@ void loop() {
   checkNtpStatus();
 
   updateStatusLED();
-  delay(5000); // Power saving mechanism to slow down the main loop
+  delay(10000); // Power saving mechanism to slow down the main loop
 }
