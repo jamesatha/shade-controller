@@ -121,11 +121,11 @@ void setup() {
     configuration->upIsClockwise = false;
     configuration->steps = 4091; // when on max step size
     topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
-  } else if (WiFi.localIP().toString().compareTo("192.168.68.59") == 0) {
-    Serial.println("Found IP address: 192.168.68.59");
+  } else if (WiFi.localIP().toString().compareTo("192.168.68.91") == 0) { // Right
+    Serial.println("Found IP address: 192.168.68.91");
     configuration = (Configuration *)malloc(sizeof(Configuration));
     configuration->upIsClockwise = true;
-    configuration->steps = 16000;
+    configuration->steps = 4091;
     topMotor.setStatus(MOTOR_AT_CLOCKWISE_MAX, true);
   } else {
     // NO CONFIGURATION FOUND!
