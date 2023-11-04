@@ -9,6 +9,9 @@
 # define BOOT_BUTTON_PIN 0
 # define MAX_STEPS_AT_A_TIME 40000
 
+// TODO: change this value based on math - shooting for around 18 hours
+# define MAX_TICKS_MOTOR_ENABLED 1000000
+
 // unsure if that needs to be on a PULL_DOWN (2)
 #include  "./StepperMotor.h"
 #define STEP_PIN 12
@@ -95,6 +98,17 @@ void startTopMotorSpinTask() {
     tskNO_AFFINITY);         /* core assignment */
 }
 
+bool closeTopShade() {
+  MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_CLOCKWISE_MAX : MOTOR_AT_COUNTER_MAX;
+  if (topMotor.startDrive(configuration->upIsClockwise, configuration->steps, endState, false /*force motor off*/)) {
+    topMotor.setStepWait(13000);
+    startTopMotorSpinTask();
+    return true;
+  } else {
+    return false;
+  }
+}
+
 void setup() {
   prepareStatusLED();
 
@@ -164,7 +178,6 @@ void setup() {
   });
 
   server.on("/top/close", HTTP_POST, [](AsyncWebServerRequest *request) {
-    MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_CLOCKWISE_MAX : MOTOR_AT_COUNTER_MAX;
     if (configuration == NULL) {
       request->send(500, "text/plain", "Configuration Missing");
     } else {
@@ -175,9 +188,7 @@ void setup() {
           request->getParam("turnOff")->value().compareTo("TRUE") == 0
         );
         */
-      if (topMotor.startDrive(configuration->upIsClockwise, configuration->steps, endState, false /*force motor off*/)) {
-        topMotor.setStepWait(13000);
-        startTopMotorSpinTask();
+      if (closeTopShade()) {
         request->send(200, "text/plain", "Moving up"); // check type -- TODO Make JSON
       } else {
         request->send(413, "text/plain", "WAIT!");
@@ -325,6 +336,7 @@ void checkNtpStatus() {
 }
 
 int prevBootButtonState = HIGH;
+unsigned int topMotorEnabledTicks = 0;
 void loop() {
   int bootButtonState = digitalRead(BOOT_BUTTON_PIN);  // Read the state of the BOOT button
   if (prevBootButtonState != bootButtonState) {
@@ -345,6 +357,18 @@ void loop() {
       
     }
     prevBootButtonState = bootButtonState;
+  }
+
+  if (topMotor.isEnabled()) {
+    topMotorEnabledTicks++;
+  } else {
+    topMotorEnabledTicks = 0;
+  }
+
+  // Maybe change the mod value to make sure we don't keep trying to close the shade
+  if (topMotorEnabledTicks > MAX_TICKS_MOTOR_ENABLED && topMotorEnabledTicks % 10000 == 1) {
+    // move to motor disabled state
+    closeTopShade();
   }
 
   checkWifiStatus();
