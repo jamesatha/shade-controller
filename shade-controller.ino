@@ -48,6 +48,7 @@ long startTime = millis();
 bool wifiOkStatus = false;
 bool ntpOkStatus = false;
 
+unsigned int topMotorEnabledTicks = 0;
 
 // Create an instance of the server
 AsyncWebServer server(80);
@@ -161,12 +162,16 @@ void setup() {
       request->send(500, "text/plain", "Configuration Missing");
     } else {
       MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_COUNTER_MAX : MOTOR_AT_CLOCKWISE_MAX;
-      bool turnOff = request->hasParam("turnOff") && (
+      bool turnOff = request->hasParam("turnOff") && ( // IS THIS ACUTALLY USED?!
           request->getParam("turnOff")->value().compareTo("true") == 0 ||
           request->getParam("turnOff")->value().compareTo("True") == 0 ||
           request->getParam("turnOff")->value().compareTo("TRUE") == 0
         );
-      if (topMotor.startDrive(!configuration->upIsClockwise, endState, !turnOff, configuration->steps, 29000)) {
+      
+
+      // Original code had "configuration->steps, 29000" 
+      // Now we are splitting up the 4091
+      if (topMotor.startDrive(!configuration->upIsClockwise, endState, !turnOff, 1591, 12000, 1000, 16000, 750, 21000, 750, 29500)) {
         startTopMotorSpinTask();
         request->send(200, "text/plain", "Moving down"); // check type
       } else {
@@ -256,6 +261,7 @@ void setup() {
     doc["uptime"] = buffer;
     doc["wifi"] = wifiOkStatus;
     doc["ntp"] = ntpOkStatus;
+    doc["continuous_enabled_ticks"] = topMotorEnabledTicks;
     doc["motor_enabled"] = topMotor.isEnabled();
     switch (topMotor.getStatus()) {
       case MOTOR_UNKNOWN:
@@ -331,7 +337,6 @@ void checkNtpStatus() {
 }
 
 int prevBootButtonState = HIGH;
-unsigned int topMotorEnabledTicks = 0;
 void loop() {
   int bootButtonState = digitalRead(BOOT_BUTTON_PIN);  // Read the state of the BOOT button
   if (prevBootButtonState != bootButtonState) {
