@@ -14,7 +14,8 @@ typedef enum MotorStatus {
 
 typedef struct {
   volatile MotorStatus movingEndState;
-  volatile int stepsLeft;
+  volatile int stepsLeft; // in case there is ever a negative value, this shouldn't wrap so leaving as an int
+  volatile unsigned int waitTimeMicroseconds;
   volatile bool keepEnabledWhenCompleted;
 } MovingInfo;
 
@@ -24,10 +25,7 @@ class StepperMotor {
           unsigned int enablePin,
           unsigned int stepPin, 
           unsigned int dirPin, 
-          unsigned int waitTimeMicroseconds = 2,
           MotorStatus status = MOTOR_UNKNOWN);
-
-        void setStepWait(unsigned int waitTimeMicroseconds);
 
         [[nodiscard]] bool setStatus(MotorStatus status, bool force=false);
         MotorStatus getStatus();
@@ -35,12 +33,19 @@ class StepperMotor {
         bool isMoving();
 
 
-        [[nodiscard]] bool startDrive(bool clockwise, unsigned int steps, MotorStatus desiredEndState, bool keepEnabledWhenCompleted);
+        [[nodiscard]] bool startDrive(bool clockwise, MotorStatus desiredEndState, bool keepEnabledWhenCompleted,
+                                      unsigned int steps, unsigned int waitTimeMicroseconds);
+        [[nodiscard]] bool startDrive(bool clockwise, MotorStatus desiredEndState, bool keepEnabledWhenCompleted, 
+                                      unsigned int steps1, unsigned int waitTimeMicroseconds1,
+                                      unsigned int steps2, unsigned int waitTimeMicroseconds2,
+                                      unsigned int steps3, unsigned int waitTimeMicroseconds3,
+                                      unsigned int steps4, unsigned int waitTimeMicroseconds4);
+
         void continueDrive();
         void stopMotor();
         void disableMotor();
     private:
-        unsigned int enablePin, dirPin, stepPin, waitTimeMicroseconds;
+        unsigned int enablePin, dirPin, stepPin;
         volatile MotorStatus status;
         bool motorEnabled;
         std::mutex statusMutex;

@@ -100,8 +100,7 @@ void startTopMotorSpinTask() {
 
 bool closeTopShade() {
   MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_CLOCKWISE_MAX : MOTOR_AT_COUNTER_MAX;
-  if (topMotor.startDrive(configuration->upIsClockwise, configuration->steps, endState, false /*force motor off*/)) {
-    topMotor.setStepWait(13000);
+  if (topMotor.startDrive(configuration->upIsClockwise, endState, false /*force motor off*/, configuration->steps, 13000)) {
     startTopMotorSpinTask();
     return true;
   } else {
@@ -145,7 +144,7 @@ void setup() {
     // NO CONFIGURATION FOUND!
     Serial.println("UNKNOWN IP ADDRESS");
   }
-  topMotor.setStepWait(500); // TODO: set this to a good default value
+
   server.on("/top/disable", HTTP_POST, [](AsyncWebServerRequest *request) {
     topMotor.disableMotor();
     delay(1);
@@ -167,8 +166,7 @@ void setup() {
           request->getParam("turnOff")->value().compareTo("True") == 0 ||
           request->getParam("turnOff")->value().compareTo("TRUE") == 0
         );
-      if (topMotor.startDrive(!configuration->upIsClockwise, configuration->steps, endState, !turnOff)) {
-        topMotor.setStepWait(29000);
+      if (topMotor.startDrive(!configuration->upIsClockwise, endState, !turnOff, configuration->steps, 29000)) {
         startTopMotorSpinTask();
         request->send(200, "text/plain", "Moving down"); // check type
       } else {
@@ -197,17 +195,14 @@ void setup() {
   });
 
   server.on("/top/move", HTTP_POST, [](AsyncWebServerRequest *request){
-    if (request->hasParam("wait")) {
+    if (request->hasParam("steps") && request->hasParam("direction") && request->hasParam("wait")) {
       int wait = request->getParam("wait")->value().toInt();
       if (wait <= 100) { // Change to to something better
         wait = 1;
       }
       Serial.print("Setting wait to ");
       Serial.println(wait);
-      topMotor.setStepWait(wait);
-    }
 
-    if (request->hasParam("steps") && request->hasParam("direction")) {
       int steps = request->getParam("steps")->value().toInt();
       Serial.print("Spinning ");
       Serial.print(steps);
@@ -233,14 +228,14 @@ void setup() {
         );
         MotorStatus nextStatus = keepState ? topMotor.getStatus() : MOTOR_UNKNOWN;
         if (request->getParam("direction")->value().compareTo("clockwise") == 0) {
-          if (topMotor.startDrive(true, steps, nextStatus, !turnOff)) {
+          if (topMotor.startDrive(true, nextStatus, !turnOff, steps, wait)) {
             startTopMotorSpinTask();
             request->send(200, "text/plain", "Moving clockwise"); // check type
           } else {
             request->send(413, "text/plain", "WAIT!");
           }
         } else {
-          if (topMotor.startDrive(false, steps, nextStatus, !turnOff)) {
+          if (topMotor.startDrive(false, nextStatus, !turnOff, steps, wait)) {
             startTopMotorSpinTask();
             request->send(200, "text/plain", "Moving counter"); // check type
           } else {

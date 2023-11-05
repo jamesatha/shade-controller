@@ -6,9 +6,8 @@ StepperMotor::StepperMotor(
           unsigned int enablePin,
           unsigned int stepPin, 
           unsigned int dirPin, 
-          unsigned int waitTimeMicroseconds,
           MotorStatus status): 
-    enablePin(enablePin), stepPin(stepPin), dirPin(dirPin), waitTimeMicroseconds(waitTimeMicroseconds), status(status) {
+    enablePin(enablePin), stepPin(stepPin), dirPin(dirPin), status(status) {
 
   this->movingInfo.keepEnabledWhenCompleted = true;
   this->movingInfo.movingEndState = MOTOR_UNKNOWN;
@@ -18,10 +17,6 @@ StepperMotor::StepperMotor(
   pinMode(this->stepPin, OUTPUT);
   pinMode(this->dirPin, OUTPUT);
   this->disableMotor();
-}
-
-void StepperMotor::setStepWait(unsigned int waitTimeMicroseconds) {
-  this->waitTimeMicroseconds = waitTimeMicroseconds;
 }
 
 [[nodiscard]] bool StepperMotor::setStatus(MotorStatus desiredStatus, bool force) {
@@ -76,7 +71,8 @@ bool StepperMotor::isMoving() {
   return this->status == MOTOR_MOVING_CLOCKWISE || this->status == MOTOR_MOVING_COUNTER;
 }
 
-bool StepperMotor::startDrive(bool clockwise, unsigned int steps, MotorStatus desiredEndState, bool keepEnabledWhenCompleted) {
+bool StepperMotor::startDrive(bool clockwise, MotorStatus desiredEndState, bool keepEnabledWhenCompleted,
+                              unsigned int steps, unsigned int waitTimeMicroseconds) {
   if (steps == 0) {
     return false;
   }
@@ -106,6 +102,7 @@ bool StepperMotor::startDrive(bool clockwise, unsigned int steps, MotorStatus de
 
   this->movingInfo.stepsLeft = steps;
   this->movingInfo.keepEnabledWhenCompleted = keepEnabledWhenCompleted;
+  this->movingInfo.waitTimeMicroseconds = waitTimeMicroseconds;
   memory_barrier();
 
   return true;
@@ -120,7 +117,7 @@ void StepperMotor::executeSteps() {
     digitalWrite(this->stepPin, HIGH); // Make one step
     delayMicroseconds(10); // This isn't necessary
     digitalWrite(this->stepPin, LOW); // Reset step pin
-    delayMicroseconds(this->waitTimeMicroseconds); // Change this delay as needed
+    delayMicroseconds(this->movingInfo.waitTimeMicroseconds); 
     this->movingInfo.stepsLeft--;
   }
 
