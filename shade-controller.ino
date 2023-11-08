@@ -37,7 +37,7 @@ void SpinTask(void * parameters) {
 
 typedef struct {
   bool upIsClockwise;
-  int steps;
+//  int steps;
 } Configuration;
 
 Configuration* configuration = NULL;
@@ -101,7 +101,8 @@ void startTopMotorSpinTask() {
 
 bool closeTopShade() {
   MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_CLOCKWISE_MAX : MOTOR_AT_COUNTER_MAX;
-  if (topMotor.startDrive(configuration->upIsClockwise, endState, false /*force motor off*/, configuration->steps, 13000)) {
+  // 10000 was slow but still noticeable downstairs
+  if (topMotor.startDrive(configuration->upIsClockwise, endState, false /*force motor off*/, 4091*4, 1)) {
     startTopMotorSpinTask();
     return true;
   } else {
@@ -128,18 +129,26 @@ void setup() {
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
+
+  Serial.println(WiFi.macAddress());
   // CHANGE ONE OF THESE
-  if (WiFi.localIP().toString().compareTo("192.168.68.65") == 0 || WiFi.localIP().toString().compareTo("192.168.68.89") == 0) {
+  if (WiFi.macAddress() == "CC:DB:A7:49:DF:80") {
+    Serial.println("Found configuration for top left motor by mac");
+    configuration = (Configuration *)malloc(sizeof(Configuration));
+    configuration->upIsClockwise = false;
+    //configuration->steps = 4091; // when on max step size
+    topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
+  } else if (WiFi.localIP().toString().compareTo("192.168.68.65") == 0 || WiFi.localIP().toString().compareTo("192.168.68.89") == 0) {
     Serial.println("Found configuration for top left motor");
     configuration = (Configuration *)malloc(sizeof(Configuration));
     configuration->upIsClockwise = false;
-    configuration->steps = 4091; // when on max step size
+    //configuration->steps = 4091; // when on max step size
     topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
   } else if (WiFi.localIP().toString().compareTo("192.168.68.90") == 0) { // Right
     Serial.println("Found IP address: 192.168.68.90");
     configuration = (Configuration *)malloc(sizeof(Configuration));
     configuration->upIsClockwise = true;
-    configuration->steps = 4091;
+    //configuration->steps = 4091;
     topMotor.setStatus(MOTOR_AT_CLOCKWISE_MAX, true);
   } else {
     // NO CONFIGURATION FOUND!
@@ -165,7 +174,7 @@ void setup() {
 
       // Original code had "configuration->steps, 29000" 
       // Now we are splitting up the 4091
-      if (topMotor.startDrive(!configuration->upIsClockwise, endState, true, 1991, 10000, 1400, 15000, 400, 21000, 300, 29500)) {
+      if (topMotor.startDrive(!configuration->upIsClockwise, endState, true, 4500, 400, 4500, 700, 4500, 1100, 2864, 1500)) {
         startTopMotorSpinTask();
         request->send(200, "text/plain", "Moving down"); // check type
       } else {
@@ -196,7 +205,7 @@ void setup() {
   server.on("/top/move", HTTP_POST, [](AsyncWebServerRequest *request){
     if (request->hasParam("steps") && request->hasParam("direction") && request->hasParam("wait")) {
       int wait = request->getParam("wait")->value().toInt();
-      if (wait <= 100) { // Change to to something better
+      if (wait <= 1) { // Change to to something better
         wait = 1;
       }
       Serial.print("Setting wait to ");
