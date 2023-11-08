@@ -9,8 +9,8 @@
 # define BOOT_BUTTON_PIN 0
 # define MAX_STEPS_AT_A_TIME 40000
 
-// TODO: change this value based on math - shooting for around 18 hours
-# define MAX_TICKS_MOTOR_ENABLED 1000000
+// around 15 hours (6 * 60 * 15) -- first 6 is explained below in the delay call
+# define MAX_TICKS_MOTOR_ENABLED 5400
 
 // unsure if that needs to be on a PULL_DOWN (2)
 #include  "./StepperMotor.h"
@@ -135,8 +135,8 @@ void setup() {
     configuration->upIsClockwise = false;
     configuration->steps = 4091; // when on max step size
     topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
-  } else if (WiFi.localIP().toString().compareTo("192.168.68.91") == 0) { // Right
-    Serial.println("Found IP address: 192.168.68.91");
+  } else if (WiFi.localIP().toString().compareTo("192.168.68.90") == 0) { // Right
+    Serial.println("Found IP address: 192.168.68.90");
     configuration = (Configuration *)malloc(sizeof(Configuration));
     configuration->upIsClockwise = true;
     configuration->steps = 4091;
@@ -162,16 +162,10 @@ void setup() {
       request->send(500, "text/plain", "Configuration Missing");
     } else {
       MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_COUNTER_MAX : MOTOR_AT_CLOCKWISE_MAX;
-      bool turnOff = request->hasParam("turnOff") && ( // IS THIS ACUTALLY USED?!
-          request->getParam("turnOff")->value().compareTo("true") == 0 ||
-          request->getParam("turnOff")->value().compareTo("True") == 0 ||
-          request->getParam("turnOff")->value().compareTo("TRUE") == 0
-        );
-      
 
       // Original code had "configuration->steps, 29000" 
       // Now we are splitting up the 4091
-      if (topMotor.startDrive(!configuration->upIsClockwise, endState, !turnOff, 1591, 12000, 1000, 16000, 750, 21000, 750, 29500)) {
+      if (topMotor.startDrive(!configuration->upIsClockwise, endState, true, 1991, 10000, 1400, 15000, 400, 21000, 300, 29500)) {
         startTopMotorSpinTask();
         request->send(200, "text/plain", "Moving down"); // check type
       } else {
@@ -365,8 +359,10 @@ void loop() {
     topMotorEnabledTicks = 0;
   }
 
-  // Maybe change the mod value to make sure we don't keep trying to close the shade
-  if (topMotorEnabledTicks > MAX_TICKS_MOTOR_ENABLED && topMotorEnabledTicks % 10000 == 1) {
+  // If the shade has been open for too long, disable it. Otherwise try a few times to close it (which disables it)
+  if (topMotorEnabledTicks > 1.3 * MAX_TICKS_MOTOR_ENABLED) {
+    topMotor.disableMotor();
+  } else if (topMotorEnabledTicks > MAX_TICKS_MOTOR_ENABLED && topMotorEnabledTicks % (MAX_TICKS_MOTOR_ENABLED/5) == 1) {
     // move to motor disabled state
     closeTopShade();
   }
@@ -375,5 +371,5 @@ void loop() {
   checkNtpStatus();
 
   updateStatusLED();
-  delay(10000); // Power saving mechanism to slow down the main loop
+  delay(10000); // Power saving mechanism to slow down the main loop -- this leads to 6 per minute
 }
