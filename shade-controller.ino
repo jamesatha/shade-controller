@@ -37,7 +37,15 @@ void SpinTask(void * parameters) {
 
 typedef struct {
   bool upIsClockwise;
-  int steps;
+  unsigned int steps1;
+  unsigned int steps2;
+  unsigned int steps3;
+  unsigned int steps4;
+
+  unsigned int waitTimeMicroseconds1;
+  unsigned int waitTimeMicroseconds2;
+  unsigned int waitTimeMicroseconds3;
+  unsigned int waitTimeMicroseconds4;
 } Configuration;
 
 Configuration* configuration = NULL;
@@ -99,10 +107,16 @@ void startTopMotorSpinTask() {
     tskNO_AFFINITY);         /* core assignment */
 }
 
+unsigned int totalSteps() {
+  if (configuration == NULL) {
+    return 0;
+  }
+  return configuration->steps1 + configuration->steps2 + configuration->steps3 + configuration->steps4;
+}
 bool closeTopShade() {
   MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_CLOCKWISE_MAX : MOTOR_AT_COUNTER_MAX;
   // 10000 was slow but still noticeable downstairs
-  if (topMotor.startDrive(configuration->upIsClockwise, endState, false /*force motor off*/, configuration->steps, 16000)) {
+  if (topMotor.startDrive(configuration->upIsClockwise, endState, false /*force motor off*/, totalSteps(), 16000)) {
     startTopMotorSpinTask();
     return true;
   } else {
@@ -132,12 +146,36 @@ void setup() {
 
   Serial.println(WiFi.macAddress());
   // CHANGE ONE OF THESE
-  if (WiFi.macAddress() == "CC:DB:A7:49:DF:80" || WiFi.macAddress() == "70:B8:F6:5C:C6:EC") {
-    Serial.println("Found shared configuration");
+  if (WiFi.macAddress() == "CC:DB:A7:49:DF:80") {  // Left
+    Serial.println("Found LEFT configuration");
     configuration = (Configuration *)malloc(sizeof(Configuration));
     configuration->upIsClockwise = false;
-    configuration->steps = 4032; // when on max step size
     topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
+
+    configuration->steps1 = 1791;
+    configuration->steps2 = 1100;
+    configuration->steps3 = 800;
+    configuration->steps4 = 550;
+
+    configuration->waitTimeMicroseconds1 = 12000; 
+    configuration->waitTimeMicroseconds2 = 20000;
+    configuration->waitTimeMicroseconds3 = 34000; 
+    configuration->waitTimeMicroseconds4 = 40000; 
+  } else if (WiFi.macAddress() == "70:B8:F6:5C:C6:EC") { // Right
+    Serial.println("Found RIGHT configuration");
+    configuration = (Configuration *)malloc(sizeof(Configuration));
+    configuration->upIsClockwise = false;
+    topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
+
+    configuration->steps1 = 1691;
+    configuration->steps2 = 1100;
+    configuration->steps3 = 650;
+    configuration->steps4 = 591;
+
+    configuration->waitTimeMicroseconds1 = 13000; 
+    configuration->waitTimeMicroseconds2 = 20000;
+    configuration->waitTimeMicroseconds3 = 38500; 
+    configuration->waitTimeMicroseconds4 = 58500; 
   } else {
     // NO CONFIGURATION FOUND!
     Serial.println("UNKNOWN IP ADDRESS");
@@ -161,8 +199,11 @@ void setup() {
       MotorStatus endState = configuration->upIsClockwise ? MOTOR_AT_COUNTER_MAX : MOTOR_AT_CLOCKWISE_MAX;
 
       // Original code had "configuration->steps, 29000" 
-      // Now we are splitting up the 4032
-      if (topMotor.startDrive(!configuration->upIsClockwise, endState, true, 1691, 13000, 1100, 20000, 650, 38500, 591, 58500)) {
+      if (topMotor.startDrive(!configuration->upIsClockwise, endState, true, 
+                                                                            configuration->steps1, configuration->waitTimeMicroseconds1, 
+                                                                            configuration->steps2, configuration->waitTimeMicroseconds2, 
+                                                                            configuration->steps3, configuration->waitTimeMicroseconds3, 
+                                                                            configuration->steps4, configuration->waitTimeMicroseconds4)) {
         startTopMotorSpinTask();
         request->send(200, "text/plain", "Moving down"); // check type
       } else {
@@ -255,6 +296,8 @@ void setup() {
     doc["continuous_enabled_ticks"] = topMotorEnabledTicks;
     doc["motor_enabled"] = topMotor.isEnabled();
     doc["up_is_clockwise"] = configuration->upIsClockwise;
+    doc["mac_address"] = WiFi.macAddress();
+    doc["total_steps"] = totalSteps();
     switch (topMotor.getStatus()) {
       case MOTOR_UNKNOWN:
         doc["motor"] = "unknown";
