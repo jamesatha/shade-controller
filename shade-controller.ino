@@ -152,15 +152,15 @@ void setup() {
     configuration->upIsClockwise = false;
     topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
 
-    configuration->steps1 = 1791;
+    configuration->steps1 = 1691;
     configuration->steps2 = 1100;
-    configuration->steps3 = 800;
-    configuration->steps4 = 550;
+    configuration->steps3 = 850;
+    configuration->steps4 = 600;
 
-    configuration->waitTimeMicroseconds1 = 12000; 
-    configuration->waitTimeMicroseconds2 = 20000;
-    configuration->waitTimeMicroseconds3 = 34000; 
-    configuration->waitTimeMicroseconds4 = 40000; 
+    configuration->waitTimeMicroseconds1 = 13000; 
+    configuration->waitTimeMicroseconds2 = 21000;
+    configuration->waitTimeMicroseconds3 = 36000; 
+    configuration->waitTimeMicroseconds4 = 45000; 
   } else if (WiFi.macAddress() == "70:B8:F6:5C:C6:EC") { // Right
     Serial.println("Found RIGHT configuration");
     configuration = (Configuration *)malloc(sizeof(Configuration));
@@ -406,7 +406,7 @@ void loop() {
     long enabledDuration = millis() - topMotorEnabledDurationMilliSeconds;
     if (topMotorEnabledDurationMilliSeconds == 0) {
       topMotorEnabledDurationMilliSeconds = millis();
-    } else if (enabledDuration > 1.3 * MAX_TOP_MOTOR_ENABLED_MILLISECONDS) {
+    } else if (enabledDuration > 1.1 * MAX_TOP_MOTOR_ENABLED_MILLISECONDS) {
       // If the shade has been open for too long, disable it. 
       topMotor.disableMotor();
     } else if (enabledDuration > MAX_TOP_MOTOR_ENABLED_MILLISECONDS) {
