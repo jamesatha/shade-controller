@@ -9,8 +9,8 @@
 # define BOOT_BUTTON_PIN 0
 # define MAX_STEPS_AT_A_TIME 40000
 
-// around 15 hours (6 * 60 * 15) -- first 6 is explained below in the delay call
-# define MAX_TICKS_MOTOR_ENABLED 5400
+// 15 hours in milliseconds
+# define MAX_TOP_MOTOR_ENABLED_MILLISECONDS 54000000
 
 // unsure if that needs to be on a PULL_DOWN (2)
 #include  "./StepperMotor.h"
@@ -56,7 +56,7 @@ long startTime = millis();
 bool wifiOkStatus = false;
 bool ntpOkStatus = false;
 
-unsigned int topMotorEnabledTicks = 0;
+unsigned long topMotorEnabledDurationMilliSeconds = 0;
 
 // Create an instance of the server
 AsyncWebServer server(80);
@@ -170,7 +170,7 @@ void setup() {
     configuration->steps1 = 1691;
     configuration->steps2 = 1100;
     configuration->steps3 = 650;
-    configuration->steps4 = 591;
+    configuration->steps4 = 590;
 
     configuration->waitTimeMicroseconds1 = 13000; 
     configuration->waitTimeMicroseconds2 = 20000;
@@ -207,7 +207,7 @@ void setup() {
         startTopMotorSpinTask();
         request->send(200, "text/plain", "Moving down"); // check type
       } else {
-        request->send(413, "text/plain", "WAIT!");
+        request->send(409, "text/plain", "WAIT!");
       }
     }
   });
@@ -226,7 +226,7 @@ void setup() {
       if (closeTopShade()) {
         request->send(200, "text/plain", "Moving up"); // check type -- TODO Make JSON
       } else {
-        request->send(413, "text/plain", "WAIT!");
+        request->send(409, "text/plain", "WAIT!");
       }
     }
   });
@@ -269,14 +269,14 @@ void setup() {
             startTopMotorSpinTask();
             request->send(200, "text/plain", "Moving clockwise"); // check type
           } else {
-            request->send(413, "text/plain", "WAIT!");
+            request->send(409, "text/plain", "WAIT!");
           }
         } else {
           if (topMotor.startDrive(false, nextStatus, !turnOff, steps, wait)) {
             startTopMotorSpinTask();
             request->send(200, "text/plain", "Moving counter"); // check type
           } else {
-            request->send(413, "text/plain", "WAIT!");
+            request->send(409, "text/plain", "WAIT!");
           }
         }
       }
@@ -293,7 +293,15 @@ void setup() {
     doc["uptime"] = buffer;
     doc["wifi"] = wifiOkStatus;
     doc["ntp"] = ntpOkStatus;
-    doc["continuous_enabled_ticks"] = topMotorEnabledTicks;
+
+    char enabledBuffer[150];
+    if (topMotorEnabledDurationMilliSeconds > 0) {
+      getHumanTime(millis() - topMotorEnabledDurationMilliSeconds, enabledBuffer);
+    } else {
+      getHumanTime(0, enabledBuffer);
+    }
+    doc["continuously_enabled"] = enabledBuffer;
+
     doc["motor_enabled"] = topMotor.isEnabled();
     doc["up_is_clockwise"] = configuration->upIsClockwise;
     doc["mac_address"] = WiFi.macAddress();
@@ -395,17 +403,18 @@ void loop() {
   }
 
   if (topMotor.isEnabled()) {
-    topMotorEnabledTicks++;
+    long enabledDuration = millis() - topMotorEnabledDurationMilliSeconds;
+    if (topMotorEnabledDurationMilliSeconds == 0) {
+      topMotorEnabledDurationMilliSeconds = millis();
+    } else if (enabledDuration > 1.3 * MAX_TOP_MOTOR_ENABLED_MILLISECONDS) {
+      // If the shade has been open for too long, disable it. 
+      topMotor.disableMotor();
+    } else if (enabledDuration > MAX_TOP_MOTOR_ENABLED_MILLISECONDS) {
+      // Otherwise try a few times to close it (which disables it)
+      closeTopShade();
+    }
   } else {
-    topMotorEnabledTicks = 0;
-  }
-
-  // If the shade has been open for too long, disable it. Otherwise try a few times to close it (which disables it)
-  if (topMotorEnabledTicks > 1.3 * MAX_TICKS_MOTOR_ENABLED) {
-    topMotor.disableMotor();
-  } else if (topMotorEnabledTicks > MAX_TICKS_MOTOR_ENABLED && topMotorEnabledTicks % (MAX_TICKS_MOTOR_ENABLED/5) == 1) {
-    // move to motor disabled state
-    closeTopShade();
+    topMotorEnabledDurationMilliSeconds = 0;
   }
 
   checkWifiStatus();
