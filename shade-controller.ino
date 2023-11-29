@@ -152,15 +152,15 @@ void setup() {
     configuration->upIsClockwise = false;
     topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
 
-    configuration->steps1 = 1691;
-    configuration->steps2 = 1100;
-    configuration->steps3 = 850;
-    configuration->steps4 = 600;
+    configuration->steps1 = 1591;
+    configuration->steps2 = 1000;
+    configuration->steps3 = 950;
+    configuration->steps4 = 700;
 
-    configuration->waitTimeMicroseconds1 = 13000; 
-    configuration->waitTimeMicroseconds2 = 21000;
-    configuration->waitTimeMicroseconds3 = 36000; 
-    configuration->waitTimeMicroseconds4 = 45000; 
+    configuration->waitTimeMicroseconds1 = 14000; 
+    configuration->waitTimeMicroseconds2 = 26000;
+    configuration->waitTimeMicroseconds3 = 47500; 
+    configuration->waitTimeMicroseconds4 = 59500; 
   } else if (WiFi.macAddress() == "70:B8:F6:5C:C6:EC") { // Right
     Serial.println("Found RIGHT configuration");
     configuration = (Configuration *)malloc(sizeof(Configuration));
@@ -170,12 +170,12 @@ void setup() {
     configuration->steps1 = 1691;
     configuration->steps2 = 1100;
     configuration->steps3 = 650;
-    configuration->steps4 = 590;
+    configuration->steps4 = 570;
 
-    configuration->waitTimeMicroseconds1 = 13000; 
-    configuration->waitTimeMicroseconds2 = 20000;
-    configuration->waitTimeMicroseconds3 = 38500; 
-    configuration->waitTimeMicroseconds4 = 58500; 
+    configuration->waitTimeMicroseconds1 = 14000; 
+    configuration->waitTimeMicroseconds2 = 22000;
+    configuration->waitTimeMicroseconds3 = 40500; 
+    configuration->waitTimeMicroseconds4 = 60500; 
   } else {
     // NO CONFIGURATION FOUND!
     Serial.println("UNKNOWN IP ADDRESS");
