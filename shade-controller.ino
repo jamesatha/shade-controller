@@ -152,14 +152,14 @@ void setup() {
     configuration->upIsClockwise = false;
     topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
 
-    configuration->steps1 = 1591;
-    configuration->steps2 = 1000;
+    configuration->steps1 = 1541;
+    configuration->steps2 = 950;
     configuration->steps3 = 950;
-    configuration->steps4 = 700;
+    configuration->steps4 = 800;
 
     configuration->waitTimeMicroseconds1 = 14000; 
-    configuration->waitTimeMicroseconds2 = 26000;
-    configuration->waitTimeMicroseconds3 = 47500; 
+    configuration->waitTimeMicroseconds2 = 28000;
+    configuration->waitTimeMicroseconds3 = 49500; 
     configuration->waitTimeMicroseconds4 = 59500; 
   } else if (WiFi.macAddress() == "70:B8:F6:5C:C6:EC") { // Right
     Serial.println("Found RIGHT configuration");
@@ -168,13 +168,13 @@ void setup() {
     topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
 
     configuration->steps1 = 1691;
-    configuration->steps2 = 1100;
+    configuration->steps2 = 1000;
     configuration->steps3 = 650;
-    configuration->steps4 = 570;
+    configuration->steps4 = 670;
 
     configuration->waitTimeMicroseconds1 = 14000; 
-    configuration->waitTimeMicroseconds2 = 22000;
-    configuration->waitTimeMicroseconds3 = 40500; 
+    configuration->waitTimeMicroseconds2 = 25000;
+    configuration->waitTimeMicroseconds3 = 45500; 
     configuration->waitTimeMicroseconds4 = 60500; 
   } else {
     // NO CONFIGURATION FOUND!
