@@ -168,14 +168,14 @@ void setup() {
     topMotor.setStatus(MOTOR_AT_COUNTER_MAX, true);
 
     configuration->steps1 = 1691;
-    configuration->steps2 = 1000;
-    configuration->steps3 = 650;
-    configuration->steps4 = 670;
+    configuration->steps2 = 950;
+    configuration->steps3 = 670;
+    configuration->steps4 = 700;
 
-    configuration->waitTimeMicroseconds1 = 14000; 
-    configuration->waitTimeMicroseconds2 = 25000;
-    configuration->waitTimeMicroseconds3 = 45500; 
-    configuration->waitTimeMicroseconds4 = 60500; 
+    configuration->waitTimeMicroseconds1 = 15000; 
+    configuration->waitTimeMicroseconds2 = 26000;
+    configuration->waitTimeMicroseconds3 = 48500; 
+    configuration->waitTimeMicroseconds4 = 66500; 
   } else {
     // NO CONFIGURATION FOUND!
     Serial.println("UNKNOWN IP ADDRESS");
