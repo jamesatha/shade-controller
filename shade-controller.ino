@@ -146,7 +146,7 @@ void setup() {
 
   Serial.println(WiFi.macAddress());
   // CHANGE ONE OF THESE
-  if (WiFi.macAddress() == "CC:DB:A7:49:DF:80") {  // Left
+  if (WiFi.macAddress() == "D4:8A:FC:9D:E8:60") {  // Left
     Serial.println("Found LEFT configuration");
     configuration = (Configuration *)malloc(sizeof(Configuration));
     configuration->upIsClockwise = false;
@@ -155,7 +155,7 @@ void setup() {
     configuration->steps1 = 1541;
     configuration->steps2 = 950;
     configuration->steps3 = 950;
-    configuration->steps4 = 800;
+    configuration->steps4 = 690;
 
     configuration->waitTimeMicroseconds1 = 14000; 
     configuration->waitTimeMicroseconds2 = 28000;
