@@ -154,13 +154,13 @@ void setup() {
 
     configuration->steps1 = 1541;
     configuration->steps2 = 950;
-    configuration->steps3 = 950;
+    configuration->steps3 = 850;
     configuration->steps4 = 690;
 
     configuration->waitTimeMicroseconds1 = 14000; 
     configuration->waitTimeMicroseconds2 = 28000;
-    configuration->waitTimeMicroseconds3 = 49500; 
-    configuration->waitTimeMicroseconds4 = 59500; 
+    configuration->waitTimeMicroseconds3 = 53500; 
+    configuration->waitTimeMicroseconds4 = 60500; 
   } else if (WiFi.macAddress() == "70:B8:F6:5C:C6:EC") { // Right
     Serial.println("Found RIGHT configuration");
     configuration = (Configuration *)malloc(sizeof(Configuration));
